@@ -1,0 +1,560 @@
+openapi: 3.0.3
+info:
+  title: SafeRoute AI - Safety Assessment API
+  description: API for safety scoring and crime data analysis in Cape Town
+  version: 1.0.0
+  contact:
+    name: SafeRoute AI Team
+    email: team@saferoute.ai
+
+servers:
+  - url: http://localhost:3001/api
+    description: Development server
+  - url: https://api.saferoute.ai
+    description: Production server
+
+paths:
+  /safety/score:
+    post:
+      summary: Calculate safety score for location or route
+      description: |
+        Generate comprehensive safety assessment using crime data,
+        environmental factors, and AI analysis.
+      operationId: calculateSafetyScore
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SafetyScoreRequest'
+            examples:
+              location-score:
+                summary: Score for specific location
+                value:
+                  location:
+                    latitude: -33.9249
+                    longitude: 18.4241
+                    address: "V&A Waterfront, Cape Town"
+                  timeContext:
+                    currentTime: "2025-09-24T20:30:00Z"
+                    travelDuration: 1800
+                  factors:
+                    includeCrimeData: true
+                    includeEnvironmental: true
+                    includeRealTime: true
+      responses:
+        '200':
+          description: Safety score calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SafetyScoreResponse'
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Calculation error
+
+  /safety/area/{gridId}:
+    get:
+      summary: Get safety data for grid area
+      description: Retrieve crime statistics and safety metrics for 1km x 1km grid cell
+      operationId: getAreaSafety
+      parameters:
+        - name: gridId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "CT_33_18_001"
+          description: Cape Town grid cell identifier
+        - name: timeRange
+          in: query
+          schema:
+            type: string
+            enum: ["1h", "6h", "12h", "24h", "7d", "30d"]
+            default: "24h"
+          description: Time window for safety assessment
+      responses:
+        '200':
+          description: Area safety data retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AreaSafetyData'
+        '404':
+          description: Grid area not found
+
+  /safety/alerts:
+    get:
+      summary: Get current safety alerts for Cape Town
+      description: Real-time safety alerts and incident reports
+      operationId: getCurrentAlerts
+      parameters:
+        - name: location
+          in: query
+          description: Filter alerts near location (lat,lng)
+          schema:
+            type: string
+          example: "-33.9249,18.4241"
+        - name: radius
+          in: query
+          description: Search radius in meters
+          schema:
+            type: integer
+            minimum: 100
+            maximum: 10000
+            default: 2000
+        - name: severity
+          in: query
+          description: Minimum alert severity
+          schema:
+            type: string
+            enum: ["info", "warning", "critical"]
+            default: "info"
+      responses:
+        '200':
+          description: Current alerts retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertsResponse'
+
+  /safety/crime-data:
+    get:
+      summary: Get Cape Town crime statistics
+      description: Historical and current crime data by area and type
+      operationId: getCrimeData
+      parameters:
+        - name: area
+          in: query
+          description: Cape Town suburb or neighborhood
+          schema:
+            type: string
+          example: "V&A Waterfront"
+        - name: crimeType
+          in: query
+          description: Filter by crime category
+          schema:
+            type: string
+            enum: ["violent", "property", "petty", "vehicular"]
+        - name: timeframe
+          in: query
+          description: Data time period
+          schema:
+            type: string
+            enum: ["1month", "3months", "6months", "1year"]
+            default: "6months"
+      responses:
+        '200':
+          description: Crime data retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CrimeDataResponse'
+
+components:
+  schemas:
+    SafetyScoreRequest:
+      type: object
+      required:
+        - location
+      properties:
+        location:
+          $ref: '#/components/schemas/Location'
+        route:
+          type: array
+          items:
+            $ref: '#/components/schemas/Location'
+          description: Route waypoints for route-based scoring
+        timeContext:
+          $ref: '#/components/schemas/TimeContext'
+        factors:
+          $ref: '#/components/schemas/ScoringFactors'
+        userContext:
+          $ref: '#/components/schemas/UserContext'
+
+    TimeContext:
+      type: object
+      properties:
+        currentTime:
+          type: string
+          format: date-time
+          description: Current or planned travel time
+        travelDuration:
+          type: integer
+          minimum: 0
+          description: Expected travel duration in seconds
+        dayOfWeek:
+          type: string
+          enum: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        isHoliday:
+          type: boolean
+          description: Whether current date is public holiday
+
+    ScoringFactors:
+      type: object
+      properties:
+        includeCrimeData:
+          type: boolean
+          default: true
+        includeEnvironmental:
+          type: boolean
+          default: true
+          description: Lighting, population density, infrastructure
+        includeRealTime:
+          type: boolean
+          default: true
+          description: Current events, traffic, weather
+        includeHistorical:
+          type: boolean
+          default: true
+          description: Historical incident patterns
+        aiAnalysis:
+          type: boolean
+          default: true
+          description: Use AI for contextual analysis
+
+    UserContext:
+      type: object
+      properties:
+        travelMode:
+          type: string
+          enum: ["driving", "walking", "transit", "cycling"]
+        vulnerabilityFactors:
+          type: array
+          items:
+            type: string
+            enum: ["alone", "tourist", "elderly", "disabled", "valuable_items"]
+        riskTolerance:
+          type: string
+          enum: ["low", "medium", "high"]
+
+    SafetyScoreResponse:
+      type: object
+      required:
+        - safetyScore
+        - metadata
+      properties:
+        safetyScore:
+          $ref: '#/components/schemas/SafetyScore'
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/SafetyRecommendation'
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/SafetyAlert'
+        metadata:
+          $ref: '#/components/schemas/ScoringMetadata'
+
+    SafetyScore:
+      type: object
+      required:
+        - overall
+        - lastCalculated
+      properties:
+        overall:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Composite safety score (100=safest)
+        crimeRisk:
+          type: number
+          minimum: 0
+          maximum: 100
+        timeFactor:
+          type: number
+          minimum: 0
+          maximum: 100
+        populationDensity:
+          type: number
+          minimum: 0
+          maximum: 100
+        lightingLevel:
+          type: number
+          minimum: 0
+          maximum: 100
+        historicalIncidents:
+          type: integer
+          minimum: 0
+        confidenceLevel:
+          type: number
+          minimum: 0
+          maximum: 100
+        explanation:
+          type: string
+          description: AI-generated safety explanation
+        lastCalculated:
+          type: string
+          format: date-time
+        factors:
+          type: array
+          items:
+            $ref: '#/components/schemas/SafetyFactor'
+
+    SafetyFactor:
+      type: object
+      required:
+        - type
+        - impact
+        - weight
+        - description
+      properties:
+        type:
+          type: string
+          enum: ["crime", "lighting", "population", "time", "weather", "events", "infrastructure"]
+        impact:
+          type: string
+          enum: ["positive", "negative", "neutral"]
+        weight:
+          type: number
+          minimum: 0
+          maximum: 1
+        description:
+          type: string
+        value:
+          type: number
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 100
+
+    SafetyRecommendation:
+      type: object
+      required:
+        - type
+        - priority
+        - description
+      properties:
+        type:
+          type: string
+          enum: ["route_change", "time_change", "precaution", "alert_contact"]
+        priority:
+          type: string
+          enum: ["low", "medium", "high", "critical"]
+        description:
+          type: string
+        actionable:
+          type: boolean
+          description: Whether user can act on this recommendation
+        estimatedImprovement:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Expected safety score improvement
+
+    SafetyAlert:
+      type: object
+      required:
+        - id
+        - type
+        - severity
+        - message
+        - location
+        - timestamp
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: ["high_crime_area", "poor_lighting", "recent_incident", "road_closure", "emergency"]
+        severity:
+          type: string
+          enum: ["info", "warning", "critical"]
+        message:
+          type: string
+        location:
+          $ref: '#/components/schemas/Location'
+        timestamp:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: ["system", "user_report", "official", "ai_analysis"]
+        verified:
+          type: boolean
+
+    AreaSafetyData:
+      type: object
+      required:
+        - gridId
+        - location
+        - riskLevel
+        - lastUpdated
+      properties:
+        gridId:
+          type: string
+          example: "CT_33_18_001"
+        location:
+          $ref: '#/components/schemas/Location'
+        riskLevel:
+          type: string
+          enum: ["low", "medium", "high", "critical"]
+        populationDensity:
+          type: number
+          description: People per km²
+        crimeStats:
+          type: array
+          items:
+            $ref: '#/components/schemas/CrimeStatistic'
+        environmentalFactors:
+          $ref: '#/components/schemas/EnvironmentalFactors'
+        lastUpdated:
+          type: string
+          format: date-time
+        dataSource:
+          type: string
+          enum: ["saps", "synthetic", "crowdsourced", "hybrid"]
+
+    CrimeStatistic:
+      type: object
+      required:
+        - type
+        - subtype
+        - incidentCount
+        - severity
+      properties:
+        type:
+          type: string
+          enum: ["violent", "property", "petty", "vehicular"]
+        subtype:
+          type: string
+          description: Specific crime category
+        incidentCount:
+          type: integer
+          minimum: 0
+        severity:
+          type: number
+          minimum: 1
+          maximum: 10
+        timePattern:
+          type: object
+          additionalProperties:
+            type: number
+          description: Hour-of-day incident frequency (0-23)
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 100
+
+    EnvironmentalFactors:
+      type: object
+      properties:
+        lightingQuality:
+          type: number
+          minimum: 0
+          maximum: 100
+        footTraffic:
+          type: number
+          minimum: 0
+          maximum: 100
+        businessDensity:
+          type: number
+          description: Commercial establishments per km²
+        emergencyServiceDistance:
+          type: number
+          description: Distance to nearest police/medical in meters
+        cctvCoverage:
+          type: boolean
+        publicTransportAccess:
+          type: number
+          minimum: 0
+          maximum: 100
+
+    AlertsResponse:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/SafetyAlert'
+        metadata:
+          type: object
+          properties:
+            totalCount:
+              type: integer
+            searchRadius:
+              type: number
+            centerLocation:
+              $ref: '#/components/schemas/Location'
+            lastUpdated:
+              type: string
+              format: date-time
+
+    CrimeDataResponse:
+      type: object
+      properties:
+        area:
+          type: string
+        timeframe:
+          type: string
+        statistics:
+          type: array
+          items:
+            $ref: '#/components/schemas/CrimeStatistic'
+        trends:
+          type: object
+          properties:
+            overall:
+              type: string
+              enum: ["improving", "stable", "worsening"]
+            changePercent:
+              type: number
+              description: Change from previous period
+        metadata:
+          type: object
+          properties:
+            dataQuality:
+              type: number
+              minimum: 0
+              maximum: 100
+            lastUpdated:
+              type: string
+              format: date-time
+            source:
+              type: string
+
+    ScoringMetadata:
+      type: object
+      properties:
+        calculationTime:
+          type: number
+          description: Processing time in milliseconds
+        dataSourcesUsed:
+          type: array
+          items:
+            type: string
+        aiModelVersion:
+          type: string
+        confidenceFactors:
+          type: object
+          additionalProperties:
+            type: number
+
+    Location:
+      type: object
+      required:
+        - latitude
+        - longitude
+      properties:
+        latitude:
+          type: number
+          minimum: -34.5
+          maximum: -33.5
+        longitude:
+          type: number
+          minimum: 18.0
+          maximum: 19.0
+        address:
+          type: string
+        neighborhood:
+          type: string
+        type:
+          type: string
+          enum: ["residential", "commercial", "industrial", "recreational", "transport_hub", "landmark"]
+        googlePlaceId:
+          type: string

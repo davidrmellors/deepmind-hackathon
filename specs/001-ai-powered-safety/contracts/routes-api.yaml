@@ -1,0 +1,469 @@
+openapi: 3.0.3
+info:
+  title: SafeRoute AI - Routes API
+  description: API for calculating safe routes in Cape Town
+  version: 1.0.0
+  contact:
+    name: SafeRoute AI Team
+    email: team@saferoute.ai
+
+servers:
+  - url: http://localhost:3001/api
+    description: Development server
+  - url: https://api.saferoute.ai
+    description: Production server
+
+paths:
+  /routes/calculate:
+    post:
+      summary: Calculate safe routes between two locations
+      description: |
+        Generate multiple route alternatives with safety scoring.
+        Returns 2-3 route options ranked by different criteria (fastest, safest, balanced).
+      operationId: calculateRoutes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+            examples:
+              basic-request:
+                summary: Basic route calculation
+                value:
+                  origin:
+                    latitude: -33.9249
+                    longitude: 18.4241
+                    address: "V&A Waterfront, Cape Town"
+                  destination:
+                    latitude: -33.9588
+                    longitude: 18.4718
+                    address: "Camps Bay Beach, Cape Town"
+                  preferences:
+                    safetyPriority: 70
+                    travelMode: "driving"
+                  options:
+                    maxRoutes: 3
+                    avoidTolls: false
+      responses:
+        '200':
+          description: Routes calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+              examples:
+                three-routes:
+                  summary: Three route alternatives
+                  value:
+                    routes:
+                      - id: "route_fastest_001"
+                        alternativeRank: 1
+                        totalDistance: 8500
+                        estimatedDuration: 1200
+                        safetyScore:
+                          overall: 75
+                          explanation: "Well-lit main roads with good police presence"
+                        segments:
+                          - startLocation: { latitude: -33.9249, longitude: 18.4241 }
+                            endLocation: { latitude: -33.9400, longitude: 18.4350 }
+                            distance: 2500
+                            safetyScore: { overall: 80 }
+                    metadata:
+                      calculatedAt: "2025-09-24T14:30:00Z"
+                      dataConfidence: 85
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /routes/{routeId}:
+    get:
+      summary: Get route details by ID
+      description: Retrieve detailed information for a specific calculated route
+      operationId: getRoute
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "route_fastest_001"
+      responses:
+        '200':
+          description: Route details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Route'
+        '404':
+          description: Route not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /routes/{routeId}/safety:
+    get:
+      summary: Get current safety assessment for route
+      description: Real-time safety scoring with latest crime data and conditions
+      operationId: getRouteSafety
+      parameters:
+        - name: routeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: currentTime
+          in: query
+          description: Current time for time-based safety factors
+          schema:
+            type: string
+            format: date-time
+          example: "2025-09-24T20:30:00Z"
+      responses:
+        '200':
+          description: Safety assessment retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SafetyScore'
+
+components:
+  schemas:
+    RouteRequest:
+      type: object
+      required:
+        - origin
+        - destination
+      properties:
+        origin:
+          $ref: '#/components/schemas/Location'
+        destination:
+          $ref: '#/components/schemas/Location'
+        waypoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/Location'
+          maxItems: 5
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+        options:
+          $ref: '#/components/schemas/RouteOptions'
+
+    RouteOptions:
+      type: object
+      properties:
+        maxRoutes:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 3
+        avoidTolls:
+          type: boolean
+          default: false
+        avoidHighways:
+          type: boolean
+          default: false
+        optimizeFor:
+          type: string
+          enum: ["time", "safety", "balanced"]
+          default: "balanced"
+
+    RouteResponse:
+      type: object
+      required:
+        - routes
+        - metadata
+      properties:
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Route'
+          minItems: 1
+          maxItems: 5
+        alternatives:
+          type: object
+          properties:
+            fastest:
+              type: string
+              description: Route ID of fastest option
+            safest:
+              type: string
+              description: Route ID of safest option
+            balanced:
+              type: string
+              description: Route ID of balanced option
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+
+    Route:
+      type: object
+      required:
+        - id
+        - origin
+        - destination
+        - totalDistance
+        - estimatedDuration
+        - safetyScore
+      properties:
+        id:
+          type: string
+          example: "route_fastest_001"
+        origin:
+          $ref: '#/components/schemas/Location'
+        destination:
+          $ref: '#/components/schemas/Location'
+        waypoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/Location'
+        totalDistance:
+          type: number
+          minimum: 0
+          description: Distance in meters
+          example: 8500
+        estimatedDuration:
+          type: number
+          minimum: 0
+          description: Travel time in seconds
+          example: 1200
+        safetyScore:
+          $ref: '#/components/schemas/SafetyScore'
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteSegment'
+        alternativeRank:
+          type: integer
+          minimum: 1
+          description: Ranking among alternatives (1=best for criteria)
+        googleRouteId:
+          type: string
+          description: Google Routes API reference
+        createdAt:
+          type: string
+          format: date-time
+        lastUpdated:
+          type: string
+          format: date-time
+
+    RouteSegment:
+      type: object
+      required:
+        - id
+        - startLocation
+        - endLocation
+        - distance
+        - duration
+        - safetyScore
+      properties:
+        id:
+          type: string
+        startLocation:
+          $ref: '#/components/schemas/Location'
+        endLocation:
+          $ref: '#/components/schemas/Location'
+        distance:
+          type: number
+          minimum: 0
+          description: Segment distance in meters
+        duration:
+          type: number
+          minimum: 0
+          description: Segment travel time in seconds
+        safetyScore:
+          $ref: '#/components/schemas/SafetyScore'
+        roadType:
+          type: string
+          enum: ["highway", "arterial", "local", "residential"]
+        lightingLevel:
+          type: string
+          enum: ["high", "medium", "low", "none"]
+
+    Location:
+      type: object
+      required:
+        - latitude
+        - longitude
+      properties:
+        latitude:
+          type: number
+          minimum: -34.5
+          maximum: -33.5
+          description: WGS84 latitude within Cape Town bounds
+          example: -33.9249
+        longitude:
+          type: number
+          minimum: 18.0
+          maximum: 19.0
+          description: WGS84 longitude within Cape Town bounds
+          example: 18.4241
+        address:
+          type: string
+          description: Human-readable address
+          example: "V&A Waterfront, Cape Town"
+        neighborhood:
+          type: string
+          description: Cape Town suburb or area
+          example: "V&A Waterfront"
+        type:
+          type: string
+          enum: ["residential", "commercial", "industrial", "recreational", "transport_hub", "landmark"]
+        googlePlaceId:
+          type: string
+          description: Google Places API reference
+
+    UserPreferences:
+      type: object
+      properties:
+        safetyPriority:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Safety vs speed preference (100=maximum safety)
+          example: 70
+        riskTolerance:
+          type: string
+          enum: ["low", "medium", "high"]
+          default: "medium"
+        travelMode:
+          type: string
+          enum: ["driving", "walking", "transit", "cycling"]
+          default: "driving"
+        avoidAreas:
+          type: array
+          items:
+            type: string
+          description: Specific Cape Town areas to avoid
+
+    SafetyScore:
+      type: object
+      required:
+        - overall
+        - lastCalculated
+      properties:
+        overall:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Composite safety score (100=safest)
+          example: 75
+        crimeRisk:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Crime-based risk assessment
+        timeFactor:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Time-of-day safety adjustment
+        populationDensity:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Area activity level
+        lightingLevel:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Street lighting quality
+        historicalIncidents:
+          type: integer
+          minimum: 0
+          description: Past incident count in area
+        confidenceLevel:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Data reliability score
+        explanation:
+          type: string
+          description: AI-generated safety summary
+          example: "Well-lit main roads with good police presence"
+        lastCalculated:
+          type: string
+          format: date-time
+        factors:
+          type: array
+          items:
+            $ref: '#/components/schemas/SafetyFactor'
+
+    SafetyFactor:
+      type: object
+      required:
+        - type
+        - impact
+        - weight
+        - description
+      properties:
+        type:
+          type: string
+          enum: ["crime", "lighting", "population", "time", "weather", "events"]
+        impact:
+          type: string
+          enum: ["positive", "negative", "neutral"]
+        weight:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Contribution to overall score
+        description:
+          type: string
+          description: Human-readable explanation
+        value:
+          type: number
+          description: Raw factor value
+
+    ResponseMetadata:
+      type: object
+      properties:
+        calculatedAt:
+          type: string
+          format: date-time
+        processingTime:
+          type: number
+          description: Calculation time in milliseconds
+        dataConfidence:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Overall data quality score
+        apiVersion:
+          type: string
+          example: "1.0.0"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: "INVALID_LOCATION"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Origin location is outside Cape Town metropolitan area"
+        details:
+          type: object
+          description: Additional error context
+        timestamp:
+          type: string
+          format: date-time
+        requestId:
+          type: string
+          description: Unique request identifier for debugging

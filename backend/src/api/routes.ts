@@ -70,8 +70,8 @@ router.post('/calculate', async (req: Request, res: Response) => {
     const routes = await generateRouteAlternatives(routeRequest);
 
     // Calculate safety scores for each route
-    for (const route of routes) {
-      route = await safetyScoringService.calculateRouteSafety(route);
+    for (let i = 0; i < routes.length; i++) {
+      routes[i] = await safetyScoringService.calculateRouteSafety(routes[i]);
     }
 
     // Rank routes

@@ -16,7 +16,7 @@ import {
   RouteSegment
 } from '../types/index.js';
 
-import { CrimeDataService } from './crimeDataService.js';
+import { CrimeDataService } from './crimeDataService';
 
 export class SafetyScoringService {
   private crimeDataService: CrimeDataService;

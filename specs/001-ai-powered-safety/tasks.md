@@ -56,7 +56,7 @@
 
 ## Phase 3.3: Core Implementation - Backend (Hours 1-3, ONLY after tests are failing)
 - [ ] T018 [P] Generate synthetic Cape Town crime data in backend/src/data/crime-generator.ts
-- [ ] T019 [P] CrimeData model and service in backend/src/services/crimeDataService.ts
+- [x] T019 [P] CrimeData model and service in backend/src/services/crimeDataService.ts
 - [ ] T020 [P] SafetyScore calculation algorithm in backend/src/services/safetyScoringService.ts
 - [ ] T021 [P] Location validation service for Cape Town bounds in backend/src/services/locationService.ts
 - [ ] T022 POST /api/routes/calculate endpoint in backend/src/api/routes.ts

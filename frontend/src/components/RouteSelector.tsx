@@ -89,8 +89,20 @@ const RouteSelector: React.FC<RouteSelectorProps> = ({ routes, selectedRouteId, 
                   </Typography>
 
                   {safetyScore.explanation && (
-                    <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'text.primary' }}>
-                      {safetyScore.explanation.substring(0, 100)}...
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        mt: 1,
+                        color: 'text.primary',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        lineHeight: 1.2
+                      }}
+                    >
+                      {safetyScore.explanation}
                     </Typography>
                   )}
                 </CardContent>

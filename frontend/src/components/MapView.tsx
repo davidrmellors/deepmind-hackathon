@@ -42,8 +42,8 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
   const mapRef = useRef<google.maps.Map | null>(null);
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
-  const originMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
-  const destinationMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const originMarkerRef = useRef<google.maps.Marker | null>(null);
+  const destinationMarkerRef = useRef<google.maps.Marker | null>(null);
 
   const getSafetyColor = (score: number): string => {
     if (score >= 80) return '#28a745'; // Green
@@ -52,24 +52,21 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
     return '#dc3545'; // Red
   };
 
-  const createAdvancedMarker = (position: google.maps.LatLngLiteral, title: string, color: string, location: Location) => {
+  const createMarker = (position: google.maps.LatLngLiteral, title: string, color: string, location: Location) => {
     if (!mapRef.current) return null;
 
-    const markerElement = document.createElement('div');
-    markerElement.style.width = '32px';
-    markerElement.style.height = '32px';
-    markerElement.style.borderRadius = '50%';
-    markerElement.style.backgroundColor = color;
-    markerElement.style.border = '3px solid white';
-    markerElement.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
-    markerElement.style.cursor = 'pointer';
-    markerElement.title = title;
-
-    const marker = new google.maps.marker.AdvancedMarkerElement({
-      map: mapRef.current,
+    const marker = new google.maps.Marker({
       position: position,
-      content: markerElement,
-      title: title
+      map: mapRef.current,
+      title: title,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 12,
+        fillColor: color,
+        fillOpacity: 1,
+        strokeColor: 'white',
+        strokeWeight: 3,
+      }
     });
 
     marker.addListener('click', () => {
@@ -84,7 +81,11 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
       directionsServiceRef.current = new google.maps.DirectionsService();
       directionsRendererRef.current = new google.maps.DirectionsRenderer({
         suppressMarkers: true, // We'll add custom markers
-        polylineOptions: { strokeColor: '#007bff' }
+        polylineOptions: {
+          strokeColor: '#1976d2',
+          strokeWeight: 6,
+          strokeOpacity: 0.8
+        }
       });
       directionsRendererRef.current.setMap(mapRef.current);
     }
@@ -92,6 +93,10 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
 
   useEffect(() => {
     if (route && directionsServiceRef.current && directionsRendererRef.current) {
+      // Clear any previous route
+      directionsRendererRef.current.setDirections(null as any);
+
+      // Calculate route using Google Directions API to get proper route display
       const request: google.maps.DirectionsRequest = {
         origin: { lat: route.origin.latitude, lng: route.origin.longitude },
         destination: { lat: route.destination.latitude, lng: route.destination.longitude },
@@ -102,50 +107,75 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
 
       directionsServiceRef.current.route(request, (result, status) => {
         if (status === 'OK' && result) {
+          // Set the directions result to display the route
           directionsRendererRef.current?.setDirections(result);
 
-          // Color-code segments based on safety
+          // Update map bounds to fit the route
+          if (mapRef.current && result.routes[0]) {
+            const bounds = new google.maps.LatLngBounds();
+            result.routes[0].legs.forEach(leg => {
+              leg.steps.forEach(step => {
+                bounds.extend(step.start_location);
+                bounds.extend(step.end_location);
+              });
+            });
+            mapRef.current.fitBounds(bounds);
+
+            // Add padding by setting zoom level slightly lower
+            setTimeout(() => {
+              const currentZoom = mapRef.current?.getZoom();
+              if (currentZoom && currentZoom > 10) {
+                mapRef.current?.setZoom(currentZoom - 1);
+              }
+            }, 100);
+          }
+
+          // Color-code segments based on safety (for future implementation)
           route.segments.forEach((segment: RouteSegment) => {
             const color = getSafetyColor(segment.safetyScore.overall);
-            // In production, draw custom polylines for segments with colors
             console.log(`Segment ${segment.id} safety color: ${color}`);
           });
+        } else {
+          console.error('Directions request failed due to ' + status);
         }
       });
+    } else if (directionsRendererRef.current) {
+      // Clear route if no route is selected
+      directionsRendererRef.current.setDirections(null as any);
     }
   }, [route, getSafetyColor]);
 
   useEffect(() => {
     if (originMarkerRef.current) {
-      originMarkerRef.current.map = null;
+      originMarkerRef.current.setMap(null);
       originMarkerRef.current = null;
     }
 
     if (origin && mapRef.current) {
       const position = { lat: origin.latitude, lng: origin.longitude };
-      originMarkerRef.current = createAdvancedMarker(position, 'Origin', '#28a745', origin);
+      originMarkerRef.current = createMarker(position, 'Origin', '#28a745', origin);
     }
   }, [origin, onMarkerClick]);
 
   useEffect(() => {
     if (destinationMarkerRef.current) {
-      destinationMarkerRef.current.map = null;
+      destinationMarkerRef.current.setMap(null);
       destinationMarkerRef.current = null;
     }
 
     if (destination && mapRef.current) {
       const position = { lat: destination.latitude, lng: destination.longitude };
-      destinationMarkerRef.current = createAdvancedMarker(position, 'Destination', '#dc3545', destination);
+      destinationMarkerRef.current = createMarker(position, 'Destination', '#dc3545', destination);
     }
   }, [destination, onMarkerClick]);
 
   useEffect(() => {
     return () => {
       if (originMarkerRef.current) {
-        originMarkerRef.current.map = null;
+        originMarkerRef.current.setMap(null);
       }
       if (destinationMarkerRef.current) {
-        destinationMarkerRef.current.map = null;
+        destinationMarkerRef.current.setMap(null);
       }
     };
   }, []);

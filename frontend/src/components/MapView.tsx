@@ -43,6 +43,13 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
 
+  const getSafetyColor = (score: number): string => {
+    if (score >= 80) return '#28a745'; // Green
+    if (score >= 60) return '#ffc107'; // Yellow
+    if (score >= 40) return '#fd7e14'; // Orange
+    return '#dc3545'; // Red
+  };
+
   useEffect(() => {
     if (mapRef.current && !directionsServiceRef.current) {
       directionsServiceRef.current = new google.maps.DirectionsService();
@@ -70,21 +77,14 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
 
           // Color-code segments based on safety
           route.segments.forEach((segment: RouteSegment) => {
-            const color = this.getSafetyColor(segment.safetyScore.overall);
+            const color = getSafetyColor(segment.safetyScore.overall);
             // In production, draw custom polylines for segments with colors
             console.log(`Segment ${segment.id} safety color: ${color}`);
           });
         }
       });
     }
-  }, [route]);
-
-  const getSafetyColor = (score: number): string => {
-    if (score >= 80) return '#28a745'; // Green
-    if (score >= 60) return '#ffc107'; // Yellow
-    if (score >= 40) return '#fd7e14'; // Orange
-    return '#dc3545'; // Red
-  };
+  }, [route, getSafetyColor]);
 
   const handleMapLoad = (map: google.maps.Map) => {
     mapRef.current = map;
@@ -99,7 +99,7 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
   const destinationPosition = destination ? { lat: destination.latitude, lng: destination.longitude } : null;
 
   return (
-    <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''}>
+    <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''} libraries={["places"]}>
       <GoogleMap
         mapContainerStyle={containerStyle}
         center={center}
@@ -115,7 +115,7 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
               url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
               scaledSize: new google.maps.Size(32, 32)
             }}
-            onClick={() => handleMarkerClick(origin)}
+            onClick={() => handleMarkerClick(origin!)}
           />
         )}
         {destinationPosition && (
@@ -126,10 +126,9 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
               url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
               scaledSize: new google.maps.Size(32, 32)
             }}
-            onClick={() => handleMarkerClick(destination)}
+            onClick={() => handleMarkerClick(destination!)}
           />
         )}
-        {route && directionsRendererRef.current && <DirectionsRenderer directions={null} />}
       </GoogleMap>
     </LoadScript>
   );

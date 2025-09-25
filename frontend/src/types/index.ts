@@ -155,3 +155,28 @@ export interface ScoringMetadata {
   aiModelVersion: string;
   confidenceFactors: Record<string, number>;
 }
+
+export interface AreaSafetyData {
+  gridId: string;
+  safetyScore: SafetyScore;
+  alerts: SafetyAlert[];
+  crimeStats?: {
+    totalIncidents: number;
+    highRiskTypes: string[];
+  };
+}
+
+export interface CrimeDataResponse {
+  crimes: Array<{
+    type: string;
+    count: number;
+    locations: Location[];
+    timeframe: string;
+  }>;
+  total: number;
+  area?: string;
+  metadata: {
+    source: string;
+    lastUpdated: Date;
+  };
+}

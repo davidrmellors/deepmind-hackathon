@@ -82,7 +82,7 @@ const LocationInput: React.FC<LocationInputProps> = ({ label, value, onChange, t
     : { minHeight: '40px' };
 
   return (
-    <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''}>
+    <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''} libraries={["places"]}>
       <Autocomplete
         onLoad={setAutocomplete}
         onPlaceChanged={onPlaceChanged}

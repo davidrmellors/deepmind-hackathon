@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { ThemeProvider, createTheme, CssBaseline } from '@mui/material/styles';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
 import { Container, Box, Button, Typography, AppBar, Toolbar, useMediaQuery } from '@mui/material';
 import { LocationOn, Directions } from '@mui/icons-material';
 import LocationInput from './components/LocationInput';
@@ -45,7 +46,7 @@ function App() {
   const [origin, setOrigin] = useState<Location | null>(null);
   const [destination, setDestination] = useState<Location | null>(null);
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [selectedRoute, setSelectedRoute] = useState<string | null>(null);
+  const [selectedRoute, setSelectedRoute] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));

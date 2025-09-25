@@ -55,7 +55,7 @@
 - [x] T017 [P] Integration test error handling scenario in backend/tests/integration/test_error_handling.ts
 
 ## Phase 3.3: Core Implementation - Backend (Hours 1-3, ONLY after tests are failing)
-- [ ] T018 [P] Generate synthetic Cape Town crime data in backend/src/data/crime-generator.ts
+- [x] T018 [P] Generate synthetic Cape Town crime data in backend/src/data/crime-generator.ts
 - [x] T019 [P] CrimeData model and service in backend/src/services/crimeDataService.ts
 - [x] T020 [P] SafetyScore calculation algorithm in backend/src/services/safetyScoringService.ts
 - [x] T021 [P] Location validation service for Cape Town bounds in backend/src/services/locationService.ts

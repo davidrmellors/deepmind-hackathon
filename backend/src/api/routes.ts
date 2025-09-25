@@ -69,9 +69,15 @@ router.post('/calculate', async (req: Request, res: Response) => {
     // Generate multiple route alternatives (simulating Google Routes API)
     const routes = await generateRouteAlternatives(routeRequest);
 
-    // Calculate safety scores for each route
+    // Calculate safety scores for each route with their characteristics
     for (let i = 0; i < routes.length; i++) {
-      routes[i] = await safetyScoringService.calculateRouteSafety(routes[i]);
+      const routeCharacteristics = {
+        routeType: i === 0 ? 'fastest' : i === 1 ? 'balanced' : 'safest',
+        safetyBias: i === 0 ? -10 : i === 1 ? 0 : 15,
+        lightingBias: i === 0 ? -5 : i === 1 ? 0 : 10,
+        populationBias: i === 0 ? -5 : i === 1 ? 0 : 12
+      };
+      routes[i] = await safetyScoringService.calculateRouteSafety(routes[i], undefined, routeCharacteristics);
     }
 
     // Rank routes
@@ -196,18 +202,54 @@ async function generateRouteAlternatives(request: RouteRequest): Promise<Route[]
   const maxRoutes = request.options?.maxRoutes || 3;
   const routes: Route[] = [];
 
-  // For demo purposes, we'll generate synthetic routes
+  // For demo purposes, we'll generate synthetic routes with distinct characteristics
   // In a real implementation, this would call Google Routes API
 
   const baseDistance = calculateDistance(request.origin, request.destination);
   const baseDuration = Math.round(baseDistance * 0.06); // ~60 seconds per km
 
   for (let i = 0; i < maxRoutes; i++) {
-    const routeId = `route_${i === 0 ? 'fastest' : i === 1 ? 'safest' : 'balanced'}_${uuidv4().slice(0, 8)}`;
+    const routeId = `route_${i === 0 ? 'fastest' : i === 1 ? 'balanced' : 'safest'}_${uuidv4().slice(0, 8)}`;
 
-    // Generate variations for different route types
-    const distanceMultiplier = i === 0 ? 1.0 : i === 1 ? 1.15 : 1.08; // Fastest, safest, balanced
-    const durationMultiplier = i === 0 ? 1.0 : i === 1 ? 1.2 : 1.1;
+    // Generate variations for different route types with distinct safety profiles
+    let distanceMultiplier: number;
+    let durationMultiplier: number;
+    let routeCharacteristics: any;
+
+    if (i === 0) {
+      // Fastest route - highways, potentially riskier areas
+      distanceMultiplier = 1.0;
+      durationMultiplier = 1.0;
+      routeCharacteristics = {
+        routeType: 'fastest',
+        primaryRoadType: 'highway',
+        safetyBias: -10, // Slightly less safe due to speed priority
+        lightingBias: -5,
+        populationBias: -5
+      };
+    } else if (i === 1) {
+      // Balanced route - mix of road types
+      distanceMultiplier = 1.08;
+      durationMultiplier = 1.1;
+      routeCharacteristics = {
+        routeType: 'balanced',
+        primaryRoadType: 'arterial',
+        safetyBias: 0, // Neutral bias
+        lightingBias: 0,
+        populationBias: 0
+      };
+    } else {
+      // Safest route - well-lit, populated areas, longer but safer
+      distanceMultiplier = 1.15;
+      durationMultiplier = 1.2;
+      routeCharacteristics = {
+        routeType: 'safest',
+        primaryRoadType: 'local',
+        safetyBias: 15, // Higher safety due to route selection
+        lightingBias: 10,
+        populationBias: 12
+      };
+    }
 
     const route: Route = {
       id: routeId,
@@ -228,7 +270,7 @@ async function generateRouteAlternatives(request: RouteRequest): Promise<Route[]
         lastCalculated: new Date(),
         factors: []
       },
-      segments: await generateRouteSegments(request.origin, request.destination, i),
+      segments: await generateRouteSegments(request.origin, request.destination, i, routeCharacteristics),
       alternativeRank: i + 1,
       createdAt: new Date(),
       lastUpdated: new Date()
@@ -240,7 +282,7 @@ async function generateRouteAlternatives(request: RouteRequest): Promise<Route[]
   return routes;
 }
 
-async function generateRouteSegments(origin: Location, destination: Location, routeIndex: number): Promise<RouteSegment[]> {
+async function generateRouteSegments(origin: Location, destination: Location, routeIndex: number, characteristics: any): Promise<RouteSegment[]> {
   const segments: RouteSegment[] = [];
   const numSegments = 3 + routeIndex; // Different routes have different segment counts
 
@@ -250,6 +292,21 @@ async function generateRouteSegments(origin: Location, destination: Location, ro
     const startLng = origin.longitude + (destination.longitude - origin.longitude) * (i / numSegments);
     const endLat = origin.latitude + (destination.latitude - origin.latitude) * progress;
     const endLng = origin.longitude + (destination.longitude - origin.longitude) * progress;
+
+    // Apply route characteristics to determine road type and lighting
+    let roadType: 'highway' | 'arterial' | 'local' | 'residential';
+    let lightingLevel: 'high' | 'medium' | 'low' | 'none';
+
+    if (characteristics.routeType === 'fastest') {
+      roadType = i === 0 ? 'arterial' : 'highway';
+      lightingLevel = 'medium';
+    } else if (characteristics.routeType === 'safest') {
+      roadType = i === numSegments - 1 ? 'arterial' : 'local';
+      lightingLevel = 'high';
+    } else {
+      roadType = 'arterial';
+      lightingLevel = 'medium';
+    }
 
     const segment: RouteSegment = {
       id: `segment_${i + 1}_${uuidv4().slice(0, 6)}`,
@@ -277,8 +334,8 @@ async function generateRouteSegments(origin: Location, destination: Location, ro
         lastCalculated: new Date(),
         factors: []
       },
-      roadType: i === 0 ? 'arterial' : routeIndex === 0 ? 'highway' : 'local',
-      lightingLevel: routeIndex === 1 ? 'high' : 'medium'
+      roadType,
+      lightingLevel
     };
 
     segments.push(segment);

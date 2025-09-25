@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, TextField, InputAdornment } from '@mui/material';
-import { LocationOn, Search } from '@mui/icons-material';
+import { Box, TextField, InputAdornment, IconButton, Tooltip } from '@mui/material';
+import { LocationOn, Search, MyLocation } from '@mui/icons-material';
 import { Location } from '../types';
 import RoutingService from '../services/routingService';
 
@@ -15,6 +15,7 @@ interface LocationInputProps {
 const LocationInput: React.FC<LocationInputProps> = ({ label, value, onChange, type, isMobile = false }) => {
   const [inputValue, setInputValue] = useState(value?.address || '');
   const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -55,6 +56,95 @@ const LocationInput: React.FC<LocationInputProps> = ({ label, value, onChange, t
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(event.target.value);
+  };
+
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by this browser.');
+      return;
+    }
+
+    setGettingLocation(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+
+          // Validate Cape Town bounds
+          if (latitude < -34.5 || latitude > -33.5 || longitude < 18.0 || longitude > 19.0) {
+            alert('Your current location is outside Cape Town metropolitan area.');
+            setGettingLocation(false);
+            return;
+          }
+
+          // Use Google Geocoding API to get address from coordinates
+          const geocoder = new google.maps.Geocoder();
+          geocoder.geocode(
+            { location: { lat: latitude, lng: longitude } },
+            (results, status) => {
+              if (status === 'OK' && results && results[0]) {
+                const result = results[0];
+                const newLocation: Location = {
+                  latitude,
+                  longitude,
+                  address: result.formatted_address,
+                  neighborhood: result.address_components?.find(comp =>
+                    comp.types.includes('sublocality')
+                  )?.long_name || '',
+                  googlePlaceId: result.place_id
+                };
+
+                setInputValue(newLocation.address || '');
+                onChange(newLocation);
+              } else {
+                // Fallback if geocoding fails
+                const newLocation: Location = {
+                  latitude,
+                  longitude,
+                  address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+                  neighborhood: '',
+                  googlePlaceId: undefined
+                };
+
+                setInputValue(newLocation.address || '');
+                onChange(newLocation);
+              }
+              setGettingLocation(false);
+            }
+          );
+        } catch (error) {
+          console.error('Error getting location:', error);
+          alert('Failed to get current location. Please try again.');
+          setGettingLocation(false);
+        }
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        let message = 'Failed to get current location. ';
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            message += 'Location access denied by user.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            message += 'Location information is unavailable.';
+            break;
+          case error.TIMEOUT:
+            message += 'Location request timed out.';
+            break;
+          default:
+            message += 'An unknown error occurred.';
+            break;
+        }
+        alert(message);
+        setGettingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000 // 5 minutes
+      }
+    );
   };
 
 
@@ -125,6 +215,18 @@ const LocationInput: React.FC<LocationInputProps> = ({ label, value, onChange, t
           ),
           endAdornment: (
             <InputAdornment position="end">
+              {type === 'origin' && (
+                <Tooltip title="Use current location">
+                  <IconButton
+                    onClick={getCurrentLocation}
+                    disabled={gettingLocation}
+                    size="small"
+                    sx={{ mr: 1 }}
+                  >
+                    <MyLocation />
+                  </IconButton>
+                </Tooltip>
+              )}
               <Search />
             </InputAdornment>
           )

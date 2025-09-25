@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Container, Box, Button, Typography, AppBar, Toolbar, useMediaQuery } from '@mui/material';
-import { LocationOn, Directions } from '@mui/icons-material';
+import { LocationOn, Directions, OpenInNew } from '@mui/icons-material';
 import { LoadScript } from '@react-google-maps/api';
 import LocationInput from './components/LocationInput';
 import MapView from './components/MapView';
@@ -96,6 +96,24 @@ function App() {
 
   const selectedRouteData = routes.find(r => r.id === selectedRoute) || null;
 
+  const openInGoogleMaps = useCallback(() => {
+    if (!selectedRouteData) return;
+
+    const origin = `${selectedRouteData.origin.latitude},${selectedRouteData.origin.longitude}`;
+    const destination = `${selectedRouteData.destination.latitude},${selectedRouteData.destination.longitude}`;
+
+    let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`;
+
+    if (selectedRouteData.waypoints && selectedRouteData.waypoints.length > 0) {
+      const waypointsStr = selectedRouteData.waypoints
+        .map(wp => `${wp.latitude},${wp.longitude}`)
+        .join('|');
+      url += `&waypoints=${encodeURIComponent(waypointsStr)}`;
+    }
+
+    window.open(url, '_blank');
+  }, [selectedRouteData]);
+
   return (
     <LoadScript
       googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''}
@@ -168,9 +186,20 @@ function App() {
 
             {selectedRouteData && (
               <Box sx={{ mt: 4 }}>
-                <Typography variant="h5" gutterBottom>
-                  Selected Route Details
-                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h5" gutterBottom sx={{ mb: 0 }}>
+                    Selected Route Details
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    startIcon={<OpenInNew />}
+                    onClick={openInGoogleMaps}
+                    size={isMobile ? 'small' : 'medium'}
+                    sx={{ minWidth: isMobile ? 'auto' : '160px' }}
+                  >
+                    {isMobile ? 'Open' : 'Open in Google Maps'}
+                  </Button>
+                </Box>
                 <MapView
                   origin={selectedRouteData.origin}
                   destination={selectedRouteData.destination}

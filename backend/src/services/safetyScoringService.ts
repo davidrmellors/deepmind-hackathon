@@ -547,9 +547,10 @@ export class SafetyScoringService {
    * Calculate safety scores for an entire route
    * @param route Route with segments to analyze
    * @param timeContext Time context for the journey
+   * @param routeCharacteristics Route-specific characteristics that affect safety
    * @returns Route with updated safety scores
    */
-  public async calculateRouteSafety(route: Route, timeContext?: TimeContext): Promise<Route> {
+  public async calculateRouteSafety(route: Route, timeContext?: TimeContext, routeCharacteristics?: any): Promise<Route> {
     const updatedSegments: RouteSegment[] = [];
 
     // Calculate safety for each route segment
@@ -561,9 +562,15 @@ export class SafetyScoringService {
         factors: { includeHistorical: true, includeCrimeData: true }
       });
 
+      // Apply route characteristics to segment safety score
+      let adjustedSafetyScore = { ...segmentSafety.safetyScore };
+      if (routeCharacteristics) {
+        adjustedSafetyScore = this.applyRouteCharacteristics(adjustedSafetyScore, routeCharacteristics, segment);
+      }
+
       updatedSegments.push({
         ...segment,
-        safetyScore: segmentSafety.safetyScore
+        safetyScore: adjustedSafetyScore
       });
     }
 
@@ -830,22 +837,94 @@ export class SafetyScoringService {
   private generateRouteSafetyExplanation(segments: RouteSegment[]): string {
     const avgSafety = segments.reduce((sum, seg) => sum + seg.safetyScore.overall, 0) / segments.length;
     const riskiestSegment = segments.reduce((min, seg) => seg.safetyScore.overall < min.safetyScore.overall ? seg : min);
+    const safestSegment = segments.reduce((max, seg) => seg.safetyScore.overall > max.safetyScore.overall ? seg : max);
 
-    let explanation = `Route safety varies across ${segments.length} segments`;
+    // Analyze segment distribution
+    const highRiskSegments = segments.filter(seg => seg.safetyScore.overall < 40).length;
+    const moderateRiskSegments = segments.filter(seg => seg.safetyScore.overall >= 40 && seg.safetyScore.overall < 70).length;
+    const safeSegments = segments.filter(seg => seg.safetyScore.overall >= 70).length;
 
+    // Analyze specific risk factors
+    const avgCrimeRisk = segments.reduce((sum, seg) => sum + seg.safetyScore.crimeRisk, 0) / segments.length;
+    const avgLighting = segments.reduce((sum, seg) => sum + seg.safetyScore.lightingLevel, 0) / segments.length;
+    const avgPopulation = segments.reduce((sum, seg) => sum + seg.safetyScore.populationDensity, 0) / segments.length;
+
+    let explanation = `This route spans ${segments.length} segments with an average safety score of ${Math.round(avgSafety)}/100. `;
+
+    // Overall safety assessment
     if (avgSafety >= 75) {
-      explanation += ' with generally good safety levels';
-    } else if (avgSafety >= 50) {
-      explanation += ' with moderate safety levels';
+      explanation += 'Generally considered a safe route';
+    } else if (avgSafety >= 60) {
+      explanation += 'Moderate safety levels with some areas requiring attention';
+    } else if (avgSafety >= 40) {
+      explanation += 'Mixed safety conditions - exercise caution';
     } else {
-      explanation += ' with some safety concerns';
+      explanation += 'Multiple safety concerns identified - consider alternative routes';
     }
 
+    // Segment breakdown
+    if (highRiskSegments > 0) {
+      explanation += `. ${highRiskSegments} segment${highRiskSegments > 1 ? 's' : ''} identified as high-risk`;
+    }
+    if (safeSegments > 0) {
+      explanation += `. ${safeSegments} segment${safeSegments > 1 ? 's are' : ' is'} well-lit and populated`;
+    }
+
+    // Specific risk factors
+    const riskFactors = [];
+    if (avgCrimeRisk < 50) {
+      riskFactors.push('elevated crime risk');
+    }
+    if (avgLighting < 50) {
+      riskFactors.push('poor lighting conditions');
+    }
+    if (avgPopulation < 40) {
+      riskFactors.push('isolated areas with low foot traffic');
+    }
+
+    if (riskFactors.length > 0) {
+      explanation += `. Main concerns: ${riskFactors.join(', ')}`;
+    }
+
+    // Specific location warnings
     if (riskiestSegment.safetyScore.overall < 50) {
-      explanation += `. Most cautious area is near ${riskiestSegment.endLocation.address || 'segment endpoint'}`;
+      explanation += `. Most cautious area: ${this.getSegmentDescription(riskiestSegment)} (safety score: ${riskiestSegment.safetyScore.overall}/100)`;
+    }
+
+    // Time-based recommendations
+    const currentHour = new Date().getHours();
+    if (avgLighting < 60 && (currentHour >= 19 || currentHour <= 6)) {
+      explanation += '. Recommend daytime travel due to lighting concerns';
+    }
+
+    // Road type insights
+    const roadTypes = segments.map(seg => seg.roadType);
+    const hasHighways = roadTypes.includes('highway');
+    const hasResidential = roadTypes.includes('residential');
+
+    if (hasHighways && hasResidential) {
+      explanation += '. Route includes both highway and residential sections';
+    } else if (hasHighways) {
+      explanation += '. Primarily highway route with good visibility';
+    } else if (hasResidential) {
+      explanation += '. Route through residential areas with variable lighting';
     }
 
     return explanation + '.';
+  }
+
+  private getSegmentDescription(segment: RouteSegment): string {
+    const location = segment.endLocation.address || segment.startLocation.address;
+    if (location) {
+      return location;
+    }
+
+    const neighborhood = segment.endLocation.neighborhood || segment.startLocation.neighborhood;
+    if (neighborhood) {
+      return `${neighborhood} area`;
+    }
+
+    return `${segment.roadType} section`;
   }
 
   /**
@@ -952,6 +1031,52 @@ export class SafetyScoringService {
     }
 
     return alerts;
+  }
+
+  /**
+   * Apply route characteristics to adjust safety scores
+   */
+  private applyRouteCharacteristics(safetyScore: SafetyScore, characteristics: any, segment: RouteSegment): SafetyScore {
+    const adjustedScore = { ...safetyScore };
+
+    // Apply safety bias based on route type
+    const safetyAdjustment = characteristics.safetyBias || 0;
+    const lightingAdjustment = characteristics.lightingBias || 0;
+    const populationAdjustment = characteristics.populationBias || 0;
+
+    // Adjust individual scores with bounds checking
+    adjustedScore.crimeRisk = Math.max(0, Math.min(100, adjustedScore.crimeRisk + safetyAdjustment));
+    adjustedScore.lightingLevel = Math.max(0, Math.min(100, adjustedScore.lightingLevel + lightingAdjustment));
+    adjustedScore.populationDensity = Math.max(0, Math.min(100, adjustedScore.populationDensity + populationAdjustment));
+
+    // Apply road type specific adjustments
+    if (segment.roadType === 'highway') {
+      adjustedScore.populationDensity = Math.max(0, adjustedScore.populationDensity - 5); // Highways less populated
+    } else if (segment.roadType === 'local') {
+      adjustedScore.populationDensity = Math.min(100, adjustedScore.populationDensity + 8); // Local roads more populated
+      adjustedScore.lightingLevel = Math.min(100, adjustedScore.lightingLevel + 5); // Better lighting
+    }
+
+    // Apply lighting level specific adjustments
+    if (segment.lightingLevel === 'high') {
+      adjustedScore.lightingLevel = Math.min(100, adjustedScore.lightingLevel + 10);
+    } else if (segment.lightingLevel === 'low') {
+      adjustedScore.lightingLevel = Math.max(0, adjustedScore.lightingLevel - 10);
+    }
+
+    // Recalculate overall score with weighted formula
+    adjustedScore.overall = Math.round(
+      (adjustedScore.crimeRisk * 0.4) +
+      (adjustedScore.timeFactor * 0.3) +
+      (adjustedScore.populationDensity * 0.2) +
+      (adjustedScore.lightingLevel * 0.1)
+    );
+
+    // Update explanation to include route-specific information
+    const routeType = characteristics.routeType || 'standard';
+    adjustedScore.explanation = `${routeType.charAt(0).toUpperCase() + routeType.slice(1)} route characteristics applied. ${adjustedScore.explanation}`;
+
+    return adjustedScore;
   }
 
   /**

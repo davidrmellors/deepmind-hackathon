@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { GoogleMap, DirectionsRenderer } from '@react-google-maps/api';
 import { Location, Route, RouteSegment } from '../types';
 
@@ -40,10 +40,9 @@ interface MapViewProps {
 
 const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad, onMarkerClick }) => {
   const mapRef = useRef<google.maps.Map | null>(null);
-  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
-  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const originMarkerRef = useRef<google.maps.Marker | null>(null);
   const destinationMarkerRef = useRef<google.maps.Marker | null>(null);
+  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
 
   const getSafetyColor = (score: number): string => {
     if (score >= 80) return '#28a745'; // Green
@@ -77,26 +76,9 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
   };
 
   useEffect(() => {
-    if (mapRef.current && !directionsServiceRef.current) {
-      directionsServiceRef.current = new google.maps.DirectionsService();
-      directionsRendererRef.current = new google.maps.DirectionsRenderer({
-        suppressMarkers: true, // We'll add custom markers
-        polylineOptions: {
-          strokeColor: '#1976d2',
-          strokeWeight: 6,
-          strokeOpacity: 0.8
-        }
-      });
-      directionsRendererRef.current.setMap(mapRef.current);
-    }
-  }, []);
+    if (route && window.google) {
+      const directionsService = new google.maps.DirectionsService();
 
-  useEffect(() => {
-    if (route && directionsServiceRef.current && directionsRendererRef.current) {
-      // Clear any previous route
-      directionsRendererRef.current.setDirections(null as any);
-
-      // Calculate route using Google Directions API to get proper route display
       const request: google.maps.DirectionsRequest = {
         origin: { lat: route.origin.latitude, lng: route.origin.longitude },
         destination: { lat: route.destination.latitude, lng: route.destination.longitude },
@@ -105,10 +87,9 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
         optimizeWaypoints: false
       };
 
-      directionsServiceRef.current.route(request, (result, status) => {
+      directionsService.route(request, (result, status) => {
         if (status === 'OK' && result) {
-          // Set the directions result to display the route
-          directionsRendererRef.current?.setDirections(result);
+          setDirections(result);
 
           // Update map bounds to fit the route
           if (mapRef.current && result.routes[0]) {
@@ -121,7 +102,7 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
             });
             mapRef.current.fitBounds(bounds);
 
-            // Add padding by setting zoom level slightly lower
+            // Add padding by setting zoom level slightly lower after bounds are set
             setTimeout(() => {
               const currentZoom = mapRef.current?.getZoom();
               if (currentZoom && currentZoom > 10) {
@@ -129,21 +110,15 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
               }
             }, 100);
           }
-
-          // Color-code segments based on safety (for future implementation)
-          route.segments.forEach((segment: RouteSegment) => {
-            const color = getSafetyColor(segment.safetyScore.overall);
-            console.log(`Segment ${segment.id} safety color: ${color}`);
-          });
         } else {
           console.error('Directions request failed due to ' + status);
+          setDirections(null);
         }
       });
-    } else if (directionsRendererRef.current) {
-      // Clear route if no route is selected
-      directionsRendererRef.current.setDirections(null as any);
+    } else {
+      setDirections(null);
     }
-  }, [route, getSafetyColor]);
+  }, [route]);
 
   useEffect(() => {
     if (originMarkerRef.current) {
@@ -193,6 +168,19 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
         options={mapOptions}
         onLoad={handleMapLoad}
       >
+        {directions && (
+          <DirectionsRenderer
+            directions={directions}
+            options={{
+              suppressMarkers: true,
+              polylineOptions: {
+                strokeColor: '#1976d2',
+                strokeWeight: 6,
+                strokeOpacity: 0.8
+              }
+            }}
+          />
+        )}
       </GoogleMap>
   );
 };

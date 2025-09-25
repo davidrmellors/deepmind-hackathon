@@ -41,8 +41,8 @@ router.post('/calculate', async (req: Request, res: Response) => {
     }
 
     // Validate Cape Town bounds
-    const isOriginValid = locationService.isWithinCapeTownBounds(routeRequest.origin);
-    const isDestinationValid = locationService.isWithinCapeTownBounds(routeRequest.destination);
+    const isOriginValid = locationService.isWithinCapeTownBounds(routeRequest.origin.latitude, routeRequest.origin.longitude);
+    const isDestinationValid = locationService.isWithinCapeTownBounds(routeRequest.destination.latitude, routeRequest.destination.longitude);
 
     if (!isOriginValid) {
       const error: ErrorResponse = {
@@ -71,9 +71,7 @@ router.post('/calculate', async (req: Request, res: Response) => {
 
     // Calculate safety scores for each route
     for (const route of routes) {
-      route.safetyScore = await safetyScoringService.calculateRouteSafetyScore(
-        route.segments.map(s => s.startLocation).concat([route.destination])
-      );
+      route = await safetyScoringService.calculateRouteSafety(route);
     }
 
     // Rank routes
@@ -173,10 +171,8 @@ router.get('/:routeId/safety', async (req: Request, res: Response) => {
     let safetyScore = route.safetyScore;
     if (currentTime) {
       const timeContextDate = new Date(currentTime);
-      safetyScore = await safetyScoringService.calculateRouteSafetyScore(
-        route.segments.map(s => s.startLocation).concat([route.destination]),
-        { currentTime: timeContextDate }
-      );
+      const updatedRoute = await safetyScoringService.calculateRouteSafety(route, { currentTime: timeContextDate.toISOString() });
+      safetyScore = updatedRoute.safetyScore;
     }
 
     res.status(200).json(safetyScore);

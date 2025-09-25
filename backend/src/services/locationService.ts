@@ -322,7 +322,7 @@ export class LocationService {
    * @param longitude Location longitude
    * @returns True if within bounds
    */
-  private isWithinCapeTownBounds(latitude: number, longitude: number): boolean {
+  public isWithinCapeTownBounds(latitude: number, longitude: number): boolean {
     return latitude >= CAPE_TOWN_BOUNDS.south &&
            latitude <= CAPE_TOWN_BOUNDS.north &&
            longitude >= CAPE_TOWN_BOUNDS.west &&

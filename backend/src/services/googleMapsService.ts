@@ -278,7 +278,7 @@ export class GoogleMapsService {
       }
     }
 
-    return await response.json();
+    return await response.json() as GoogleRoutesResponse;
   }
 
   /**

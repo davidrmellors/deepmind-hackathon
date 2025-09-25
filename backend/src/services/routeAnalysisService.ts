@@ -11,32 +11,15 @@ import {
   CrimeData,
   TimeContext,
   SafetyAlert,
-  SafetyRecommendation
-} from '../types/index.js';
+  SafetyRecommendation,
+  SegmentAnalysisResult,
+  RiskFactor
+} from '../types/index';
 
-import { SafetyScoringService } from './safetyScoringService.js';
-import { CrimeDataService } from './crimeDataService.js';
-import { AIExplanationService } from './aiExplanationService.js';
+import { SafetyScoringService } from './safetyScoringService';
+import { CrimeDataService } from './crimeDataService';
+import { AIExplanationService } from './aiExplanationService';
 
-interface SegmentAnalysisResult {
-  segment: RouteSegment;
-  detailedAnalysis: {
-    riskFactors: RiskFactor[];
-    safetyRecommendations: SafetyRecommendation[];
-    alternativeSegments?: RouteSegment[];
-    confidenceLevel: number;
-  };
-  alerts: SafetyAlert[];
-}
-
-interface RiskFactor {
-  type: 'crime_hotspot' | 'poor_visibility' | 'isolated_area' | 'high_traffic' | 'construction' | 'weather_impact';
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  location: Location;
-  description: string;
-  mitigationSuggestions: string[];
-  timeRelevant: boolean; // Whether this factor varies by time of day
-}
 
 interface RouteAnalysisOptions {
   includeAlternatives?: boolean;

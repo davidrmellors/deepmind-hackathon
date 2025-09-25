@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardActions, Button, Typography, Chip, Box, Grid, LinearProgress, Divider } from '@mui/material';
+import { GoogleMap, DirectionsRenderer } from '@react-google-maps/api';
 import { Route, SafetyScore } from '../types';
 import SafetyIndicator from './SafetyIndicator';
 import { SecurityOutlined, LightbulbOutlined, PeopleOutlined, AccessTimeOutlined } from '@mui/icons-material';
@@ -10,6 +11,108 @@ interface RouteSelectorProps {
   onRouteSelect: (routeId: string) => void;
   isMobile?: boolean;
 }
+
+const RoutePreview: React.FC<{ route: Route }> = ({ route }) => {
+  const [map, setMap] = React.useState<google.maps.Map | null>(null);
+  const [polyline, setPolyline] = React.useState<google.maps.Polyline | null>(null);
+
+  React.useEffect(() => {
+    if (map && route && route.segments && route.segments.length > 0) {
+      // Clear existing polyline
+      if (polyline) {
+        polyline.setMap(null);
+      }
+
+      // Create path from route segments
+      const path: google.maps.LatLngLiteral[] = [];
+
+      // Add origin
+      path.push({ lat: route.origin.latitude, lng: route.origin.longitude });
+
+      // Add points from segments
+      route.segments.forEach(segment => {
+        path.push({ lat: segment.startLocation.latitude, lng: segment.startLocation.longitude });
+        path.push({ lat: segment.endLocation.latitude, lng: segment.endLocation.longitude });
+      });
+
+      // Add destination (if different from last segment end)
+      const lastPoint = path[path.length - 1];
+      if (lastPoint.lat !== route.destination.latitude || lastPoint.lng !== route.destination.longitude) {
+        path.push({ lat: route.destination.latitude, lng: route.destination.longitude });
+      }
+
+      // Create polyline with route-specific color based on safety score
+      const getRouteColor = (safetyScore: number): string => {
+        if (safetyScore >= 80) return '#28a745'; // Green for safe routes
+        if (safetyScore >= 60) return '#ffc107'; // Yellow for moderate routes
+        return '#fd7e14'; // Orange for routes needing attention
+      };
+
+      const newPolyline = new google.maps.Polyline({
+        path: path,
+        geodesic: true,
+        strokeColor: getRouteColor(route.safetyScore.overall),
+        strokeOpacity: 0.8,
+        strokeWeight: 4,
+      });
+
+      newPolyline.setMap(map);
+      setPolyline(newPolyline);
+
+      // Fit bounds to show the entire route
+      const bounds = new google.maps.LatLngBounds();
+      path.forEach(point => bounds.extend(point));
+      map.fitBounds(bounds);
+
+      // Add slight padding by adjusting zoom
+      setTimeout(() => {
+        const currentZoom = map.getZoom();
+        if (currentZoom && currentZoom > 10) {
+          map.setZoom(currentZoom - 1);
+        }
+      }, 100);
+    }
+  }, [map, route]);
+
+  React.useEffect(() => {
+    return () => {
+      if (polyline) {
+        polyline.setMap(null);
+      }
+    };
+  }, [polyline]);
+
+  const mapOptions = {
+    zoom: 12,
+    center: { lat: route.origin.latitude, lng: route.origin.longitude },
+    mapTypeId: 'roadmap' as google.maps.MapTypeId,
+    fullscreenControl: false,
+    streetViewControl: false,
+    mapTypeControl: false,
+    zoomControl: false,
+    disableDefaultUI: true,
+    gestureHandling: 'none',
+    styles: [
+      { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }
+    ]
+  };
+
+  const handleMapLoad = (mapInstance: google.maps.Map) => {
+    setMap(mapInstance);
+  };
+
+  return (
+    <Box sx={{ height: '120px', width: '100%', borderRadius: 1, overflow: 'hidden', mb: 2 }}>
+      <GoogleMap
+        mapContainerStyle={{ width: '100%', height: '100%' }}
+        zoom={12}
+        center={{ lat: route.origin.latitude, lng: route.origin.longitude }}
+        options={mapOptions}
+        onLoad={handleMapLoad}
+      />
+    </Box>
+  );
+};
 
 const RouteSelector: React.FC<RouteSelectorProps> = ({ routes, selectedRouteId, onRouteSelect, isMobile = false }) => {
   if (routes.length === 0) {
@@ -168,6 +271,9 @@ const RouteSelector: React.FC<RouteSelectorProps> = ({ routes, selectedRouteId, 
                   </Box>
 
                   <Divider sx={{ mb: 2 }} />
+
+                  {/* Route Preview Map */}
+                  <RoutePreview route={route} />
 
                   {/* Safety Explanation */}
                   {safetyScore.explanation && (

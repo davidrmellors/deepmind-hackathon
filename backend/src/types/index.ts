@@ -49,8 +49,36 @@ export interface Route {
   segments: RouteSegment[];
   alternativeRank: number;
   googleRouteId?: string;
+  aiAnalysis?: RouteAIAnalysis;
   createdAt: Date;
   lastUpdated: Date;
+}
+
+export interface RouteAIAnalysis {
+  segmentAnalysis: SegmentAnalysisResult[];
+  recommendations: SafetyRecommendation[];
+  lastAnalyzed: Date;
+  aiProvider: string;
+}
+
+export interface SegmentAnalysisResult {
+  segment: RouteSegment;
+  detailedAnalysis: {
+    riskFactors: RiskFactor[];
+    safetyRecommendations: SafetyRecommendation[];
+    alternativeSegments?: RouteSegment[];
+    confidenceLevel: number;
+  };
+  alerts: SafetyAlert[];
+}
+
+export interface RiskFactor {
+  type: 'crime_hotspot' | 'poor_visibility' | 'isolated_area' | 'high_traffic' | 'construction' | 'weather_impact';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  location: Location;
+  description: string;
+  mitigationSuggestions: string[];
+  timeRelevant: boolean;
 }
 
 export interface RouteSegment {
@@ -227,6 +255,7 @@ export interface RouteRequest {
   waypoints?: Location[];
   preferences?: UserPreferences;
   options?: RouteOptions;
+  timeContext?: TimeContext;
 }
 
 export interface RouteOptions {

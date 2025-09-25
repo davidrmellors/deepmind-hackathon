@@ -360,7 +360,7 @@ Format as numbered list with brief explanations. Keep each tip to 1-2 sentences.
       }
     }
 
-    const data: GeminiResponse = await response.json();
+    const data = await response.json() as GeminiResponse;
 
     if (!data.candidates || data.candidates.length === 0) {
       throw new Error('No response from Gemini API');

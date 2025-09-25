@@ -102,13 +102,23 @@ function App() {
     const origin = `${selectedRouteData.origin.latitude},${selectedRouteData.origin.longitude}`;
     const destination = `${selectedRouteData.destination.latitude},${selectedRouteData.destination.longitude}`;
 
+    // Use a clean approach with just origin and destination
+    // Google Maps will provide multiple route options and user can choose
     let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`;
 
-    if (selectedRouteData.waypoints && selectedRouteData.waypoints.length > 0) {
-      const waypointsStr = selectedRouteData.waypoints
-        .map(wp => `${wp.latitude},${wp.longitude}`)
-        .join('|');
-      url += `&waypoints=${encodeURIComponent(waypointsStr)}`;
+    // Add travel mode
+    url += '&travelmode=driving';
+
+    // Add route preferences based on the selected route type to influence Google's routing
+    if (selectedRouteData.alternativeRank === 1) {
+      // Fastest route - avoid tolls and ferries for fastest option
+      url += '&avoid=tolls,ferries';
+    } else if (selectedRouteData.alternativeRank === 2) {
+      // Safest route - avoid highways to prefer local roads (generally safer/well-lit)
+      url += '&avoid=highways';
+    } else {
+      // Balanced route - avoid tolls only
+      url += '&avoid=tolls';
     }
 
     window.open(url, '_blank');

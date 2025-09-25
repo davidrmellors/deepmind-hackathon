@@ -59,13 +59,13 @@
 - [x] T019 [P] CrimeData model and service in backend/src/services/crimeDataService.ts
 - [x] T020 [P] SafetyScore calculation algorithm in backend/src/services/safetyScoringService.ts
 - [x] T021 [P] Location validation service for Cape Town bounds in backend/src/services/locationService.ts
-- [ ] T022 POST /api/routes/calculate endpoint in backend/src/api/routes.ts
-- [ ] T023 GET /api/routes/{routeId} endpoint in backend/src/api/routes.ts
-- [ ] T024 GET /api/routes/{routeId}/safety endpoint in backend/src/api/routes.ts
-- [ ] T025 POST /api/safety/score endpoint in backend/src/api/safety.ts
-- [ ] T026 GET /api/safety/area/{gridId} endpoint in backend/src/api/safety.ts
-- [ ] T027 GET /api/safety/alerts endpoint in backend/src/api/safety.ts
-- [ ] T028 GET /api/safety/crime-data endpoint in backend/src/api/safety.ts
+- [x] T022 POST /api/routes/calculate endpoint in backend/src/api/routes.ts
+- [x] T023 GET /api/routes/{routeId} endpoint in backend/src/api/routes.ts
+- [x] T024 GET /api/routes/{routeId}/safety endpoint in backend/src/api/routes.ts
+- [x] T025 POST /api/safety/score endpoint in backend/src/api/safety.ts
+- [x] T026 GET /api/safety/area/{gridId} endpoint in backend/src/api/safety.ts
+- [x] T027 GET /api/safety/alerts endpoint in backend/src/api/safety.ts
+- [x] T028 GET /api/safety/crime-data endpoint in backend/src/api/safety.ts
 
 ## Phase 3.4: Core Implementation - Frontend (Hours 2-4, parallel with backend)
 - [ ] T029 [P] MapView component with Google Maps integration in frontend/src/components/MapView.tsx

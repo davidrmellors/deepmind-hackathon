@@ -29,13 +29,21 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
-// API routes will be added here
+// Import API routes
+import routesRouter from './api/routes';
+import safetyRouter from './api/safety';
+
+// API routes middleware with logging
 app.use('/api', (req: Request, res: Response, next) => {
   console.log(`${req.method} ${req.path} - ${new Date().toISOString()}`);
   next();
 });
 
-// Placeholder API routes
+// Mount API routes
+app.use('/api/routes', routesRouter);
+app.use('/api/safety', safetyRouter);
+
+// API documentation endpoint
 app.get('/api', (req: Request, res: Response) => {
   res.json({
     message: 'SafeRoute AI API',

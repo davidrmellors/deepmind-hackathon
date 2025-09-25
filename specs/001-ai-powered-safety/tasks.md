@@ -33,26 +33,26 @@
 - **Shared**: Root-level configs, documentation
 
 ## Phase 3.1: Setup & Foundation (Hours 0-1)
-- [ ] T001 Create project structure with frontend/ and backend/ directories
-- [ ] T002 [P] Initialize backend Express.js project with TypeScript and basic dependencies
-- [ ] T003 [P] Initialize frontend React project with TypeScript and Google Maps dependencies
-- [ ] T004 [P] Configure environment variables for Google Maps API and Google AI API keys
-- [ ] T005 [P] Create TypeScript interfaces from data-model.md in backend/src/types/index.ts
-- [ ] T006 [P] Set up basic Express.js server with health endpoint in backend/src/index.ts
+- [x] T001 Create project structure with frontend/ and backend/ directories
+- [x] T002 [P] Initialize backend Express.js project with TypeScript and basic dependencies
+- [x] T003 [P] Initialize frontend React project with TypeScript and Google Maps dependencies
+- [x] T004 [P] Configure environment variables for Google Maps API and Google AI API keys
+- [x] T005 [P] Create TypeScript interfaces from data-model.md in backend/src/types/index.ts
+- [x] T006 [P] Set up basic Express.js server with health endpoint in backend/src/index.ts
 
 ## Phase 3.2: Tests First (TDD) ⚠️ MUST COMPLETE BEFORE 3.3
 **CRITICAL: These tests MUST be written and MUST FAIL before ANY implementation**
-- [ ] T007 [P] Contract test POST /api/routes/calculate in backend/tests/contract/test_routes_calculate.ts
-- [ ] T008 [P] Contract test GET /api/routes/{routeId} in backend/tests/contract/test_routes_get.ts
-- [ ] T009 [P] Contract test GET /api/routes/{routeId}/safety in backend/tests/contract/test_routes_safety.ts
-- [ ] T010 [P] Contract test POST /api/safety/score in backend/tests/contract/test_safety_score.ts
-- [ ] T011 [P] Contract test GET /api/safety/area/{gridId} in backend/tests/contract/test_safety_area.ts
-- [ ] T012 [P] Contract test GET /api/safety/alerts in backend/tests/contract/test_safety_alerts.ts
-- [ ] T013 [P] Contract test GET /api/safety/crime-data in backend/tests/contract/test_safety_crime_data.ts
-- [ ] T014 [P] Integration test basic route calculation scenario from quickstart.md in backend/tests/integration/test_route_calculation.ts
-- [ ] T015 [P] Integration test time-based safety variation scenario in backend/tests/integration/test_time_safety.ts
-- [ ] T016 [P] Integration test mobile responsive interface scenario in frontend/tests/integration/test_mobile_interface.ts
-- [ ] T017 [P] Integration test error handling scenario in backend/tests/integration/test_error_handling.ts
+- [x] T007 [P] Contract test POST /api/routes/calculate in backend/tests/contract/test_routes_calculate.ts
+- [x] T008 [P] Contract test GET /api/routes/{routeId} in backend/tests/contract/test_routes_get.ts
+- [x] T009 [P] Contract test GET /api/routes/{routeId}/safety in backend/tests/contract/test_routes_safety.ts
+- [x] T010 [P] Contract test POST /api/safety/score in backend/tests/contract/test_safety_score.ts
+- [x] T011 [P] Contract test GET /api/safety/area/{gridId} in backend/tests/contract/test_safety_area.ts
+- [x] T012 [P] Contract test GET /api/safety/alerts in backend/tests/contract/test_safety_alerts.ts
+- [x] T013 [P] Contract test GET /api/safety/crime-data in backend/tests/contract/test_safety_crime_data.ts
+- [x] T014 [P] Integration test basic route calculation scenario from quickstart.md in backend/tests/integration/test_route_calculation.ts
+- [x] T015 [P] Integration test time-based safety variation scenario in backend/tests/integration/test_time_safety.ts
+- [x] T016 [P] Integration test mobile responsive interface scenario in frontend/tests/integration/test_mobile_interface.ts
+- [x] T017 [P] Integration test error handling scenario in backend/tests/integration/test_error_handling.ts
 
 ## Phase 3.3: Core Implementation - Backend (Hours 1-3, ONLY after tests are failing)
 - [ ] T018 [P] Generate synthetic Cape Town crime data in backend/src/data/crime-generator.ts

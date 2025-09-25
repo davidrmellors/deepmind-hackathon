@@ -1,0 +1,49 @@
+{
+  "name": "saferoute-ai",
+  "version": "1.0.0",
+  "description": "AI-Powered Safety Route Advisor for Cape Town - Hackathon Project",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test -- --watchAll=false",
+    "test": "npm run test:backend && npm run test:frontend",
+    "lint:backend": "cd backend && npm run lint",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run build && serve -s frontend/build -l 3000",
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "clean": "rm -rf node_modules backend/node_modules frontend/node_modules backend/dist frontend/build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "serve": "^14.2.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/saferoute-ai/hackathon-test.git"
+  },
+  "keywords": [
+    "hackathon",
+    "cape-town",
+    "safety",
+    "routing",
+    "ai",
+    "react",
+    "express",
+    "typescript"
+  ],
+  "author": "SafeRoute AI Team",
+  "license": "MIT"
+}

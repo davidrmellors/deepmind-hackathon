@@ -77,14 +77,14 @@
 - [x] T035 SafetyService for safety data in frontend/src/services/safetyService.ts
 - [x] T036 Mobile responsive design with Material-UI breakpoints in frontend/src/styles/
 
-## Phase 3.5: Integration & AI (Hours 4-5)
-- [ ] T037 Google Routes API integration in backend/src/services/googleMapsService.ts
-- [ ] T038 Google AI (Gemini) integration for safety explanations in backend/src/services/aiExplanationService.ts
-- [ ] T039 Real-time safety score updates with time factors in backend/src/services/safetyScoringService.ts
-- [ ] T040 Route segment safety analysis in backend/src/services/routeAnalysisService.ts
-- [ ] T041 Error handling middleware and validation in backend/src/middleware/errorHandler.ts
-- [ ] T042 CORS configuration and security headers in backend/src/middleware/security.ts
-- [ ] T043 Frontend error boundaries and user feedback in frontend/src/components/ErrorBoundary.tsx
+## Phase 3.5: Integration & AI (Hours 4-5) ✅ COMPLETED
+- [x] T037 Google Routes API integration in backend/src/services/googleMapsService.ts
+- [x] T038 Google AI (Gemini) integration for safety explanations in backend/src/services/aiExplanationService.ts
+- [x] T039 Real-time safety score updates with time factors in backend/src/services/safetyScoringService.ts
+- [x] T040 Route segment safety analysis in backend/src/services/routeAnalysisService.ts
+- [x] T041 Error handling middleware and validation in backend/src/middleware/errorHandler.ts
+- [x] T042 CORS configuration and security headers in backend/src/middleware/security.ts
+- [x] T043 Frontend error boundaries and user feedback in frontend/src/components/ErrorBoundary.tsx
 
 ## Phase 3.6: Polish & Demo Prep (Hours 5-6)
 - [ ] T044 [P] Performance optimization - route caching in frontend/src/services/cacheService.ts

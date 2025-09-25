@@ -1,5 +1,8 @@
 .env
 backend/node_modules
 backend/dist
+backend/.env
 frontend/dist
 frontend/node_modules
+frontend/build
+frontend/.env

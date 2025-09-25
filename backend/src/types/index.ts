@@ -288,6 +288,7 @@ export interface SafetyRecommendation {
   description: string;
   actionable: boolean;
   estimatedImprovement?: number;
+  aiGenerated?: boolean;
 }
 
 export interface ResponseMetadata {
@@ -310,4 +311,54 @@ export interface ErrorResponse {
   details?: any;
   timestamp: Date;
   requestId?: string;
+}
+
+// Google Maps Service Types
+export interface RouteCalculationRequest {
+  origin: Location;
+  destination: Location;
+  waypoints?: Location[];
+  preferences?: {
+    safetyPriority?: number;
+    travelMode?: TravelMode;
+    avoidTolls?: boolean;
+    avoidHighways?: boolean;
+  };
+  timeContext?: TimeContext;
+  options?: {
+    maxRoutes?: number;
+  };
+}
+
+export interface RouteCalculationResponse {
+  routes: Route[];
+  metadata: {
+    calculationTime: number;
+    routesRequested: number;
+    routesReturned: number;
+    dataSource: string;
+    fallbackUsed: boolean;
+    apiVersion: string;
+  };
+}
+
+// AI Explanation Service Types
+export interface AIExplanationRequest {
+  safetyScore: SafetyScore;
+  location: Location;
+  crimeData?: CrimeData;
+  timeContext?: TimeContext;
+}
+
+export interface AIExplanationResponse {
+  explanation: string;
+  recommendations: SafetyRecommendation[];
+  confidence: number;
+  generatedAt: Date;
+  metadata: {
+    promptTokens: number;
+    responseTokens: number;
+    model: string;
+    temperature: number;
+  };
 }

@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { TextField, Button, Box, InputAdornment } from '@mui/material';
+import { Box, TextField, InputAdornment } from '@mui/material';
 import { LocationOn, Search } from '@mui/icons-material';
-import { LoadScript, Autocomplete } from '@react-google-maps/api';
 import { Location } from '../types';
 import RoutingService from '../services/routingService';
 
@@ -19,107 +18,129 @@ const LocationInput: React.FC<LocationInputProps> = ({ label, value, onChange, t
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (autocomplete && value) {
-      // Update input when value changes externally
+    if (value) {
       setInputValue(value.address || '');
     }
-  }, [value, autocomplete]);
+  }, [value]);
 
-  const onPlaceChanged = () => {
-    if (autocomplete !== null) {
-      const place = autocomplete.getPlace();
-      if (!place.geometry || !place.geometry.location) {
-        console.log('No details available for input: ' + place.name);
-        return;
-      }
-
-      const lat = place.geometry.location.lat();
-      const lng = place.geometry.location.lng();
-      const address = place.formatted_address || place.name || '';
-
-      // Validate Cape Town bounds
-      if (lat < -34.5 || lat > -33.5 || lng < 18.0 || lng > 19.0) {
-        alert('Location must be within Cape Town metropolitan area.');
-        return;
-      }
-
-      const newLocation: Location = {
-        latitude: lat,
-        longitude: lng,
-        address,
-        neighborhood: place.address_components?.find(comp => comp.types.includes('sublocality'))?.long_name || '',
-        googlePlaceId: place.place_id
-      };
-
-      // Validate with service
-      RoutingService.validateLocation(newLocation).then(isValid => {
-        if (isValid) {
-          onChange(newLocation);
-        } else {
-          alert('Invalid location. Please choose a location within Cape Town.');
-        }
+  useEffect(() => {
+    // Initialize classic Autocomplete with proper restrictions
+    if (inputRef.current && !autocomplete) {
+      const autocompleteService = new google.maps.places.Autocomplete(inputRef.current, {
+        componentRestrictions: { country: 'za' },
+        bounds: new google.maps.LatLngBounds(
+          new google.maps.LatLng(-34.5, 18.0), // Southwest corner of Cape Town
+          new google.maps.LatLng(-33.5, 19.0)  // Northeast corner of Cape Town
+        ),
+        strictBounds: true,
+        types: ['establishment', 'geocode']
       });
-    } else {
-      console.log('Autocomplete is not loaded yet!');
+
+      setAutocomplete(autocompleteService);
+
+      // Listen for place selection
+      autocompleteService.addListener('place_changed', () => {
+        const place = autocompleteService.getPlace();
+        console.log('Place selected:', place);
+        onPlaceChanged(place);
+      });
     }
-  };
+
+    return () => {
+      if (autocomplete) {
+        google.maps.event.clearInstanceListeners(autocomplete);
+      }
+    };
+  }, []);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(event.target.value);
   };
 
-  const handleKeyPress = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter') {
-      if (autocomplete) {
-        autocomplete.set('place', inputValue);
-        onPlaceChanged();
-      }
+
+  const onPlaceChanged = (place: google.maps.places.PlaceResult) => {
+    console.log('onPlaceChanged called with place:', place);
+
+    if (!place.geometry || !place.geometry.location) {
+      console.error('No geometry/location available for place:', place);
+      return;
     }
+
+    const lat = place.geometry.location.lat();
+    const lng = place.geometry.location.lng();
+    const address = place.formatted_address || place.name || '';
+
+    console.log('Place details:', { lat, lng, address });
+
+    // Validate Cape Town bounds
+    if (lat < -34.5 || lat > -33.5 || lng < 18.0 || lng > 19.0) {
+      alert('Location must be within Cape Town metropolitan area.');
+      return;
+    }
+
+    const newLocation: Location = {
+      latitude: lat,
+      longitude: lng,
+      address,
+      neighborhood: place.address_components?.find(comp => comp.types.includes('sublocality'))?.long_name || '',
+      googlePlaceId: place.place_id
+    };
+
+    console.log('New location object:', newLocation);
+
+    // Update input value
+    setInputValue(address);
+
+    // Validate with service
+    RoutingService.validateLocation(newLocation).then(isValid => {
+      console.log('Location validation result:', isValid);
+      if (isValid) {
+        console.log('Calling onChange with location:', newLocation);
+        onChange(newLocation);
+      } else {
+        alert('Invalid location. Please choose a location within Cape Town.');
+      }
+    }).catch(error => {
+      console.error('Validation error:', error);
+      // Still call onChange even if validation fails, as the error might be network-related
+      onChange(newLocation);
+    });
   };
 
-  const inputStyle = isMobile 
-    ? { minHeight: '44px', fontSize: '16px' } // Mobile touch-friendly
-    : { minHeight: '40px' };
 
   return (
-    <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''} libraries={["places"]}>
-      <Autocomplete
-        onLoad={setAutocomplete}
-        onPlaceChanged={onPlaceChanged}
-        options={{
-          componentRestrictions: { country: 'za' }, // Restrict to South Africa
-          types: ['establishment', 'geocode']
+    <Box sx={{ width: '100%' }}>
+      <TextField
+        fullWidth
+        label={label}
+        value={inputValue}
+        onChange={handleInputChange}
+        inputRef={inputRef}
+        placeholder={`Enter ${type} location in Cape Town`}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <LocationOn />
+            </InputAdornment>
+          ),
+          endAdornment: (
+            <InputAdornment position="end">
+              <Search />
+            </InputAdornment>
+          )
         }}
-      >
-        <TextField
-          fullWidth
-          label={label}
-          value={inputValue}
-          onChange={handleInputChange}
-          onKeyPress={handleKeyPress}
-          inputRef={inputRef}
-          placeholder={`Enter ${type} location in Cape Town`}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <LocationOn />
-              </InputAdornment>
-            ),
-            endAdornment: (
-              <InputAdornment position="end">
-                <Search />
-              </InputAdornment>
-            )
-          }}
-          sx={{ 
-            '& .MuiInputBase-root': inputStyle,
-            marginBottom: 2,
-            input: { fontSize: isMobile ? '16px' : '14px' } // Prevent zoom on iOS
-          }}
-          variant="outlined"
-        />
-      </Autocomplete>
-    </LoadScript>
+        sx={{
+          '& .MuiInputBase-root': {
+            minHeight: isMobile ? '44px' : '40px'
+          },
+          marginBottom: 2,
+          '& .MuiInputBase-input': {
+            fontSize: isMobile ? '16px' : '14px' // Prevent zoom on iOS
+          }
+        }}
+        variant="outlined"
+      />
+    </Box>
   );
 };
 

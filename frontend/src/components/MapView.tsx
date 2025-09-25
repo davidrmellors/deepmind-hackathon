@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { GoogleMap, LoadScript, Marker, DirectionsRenderer } from '@react-google-maps/api';
+import { GoogleMap, DirectionsRenderer } from '@react-google-maps/api';
 import { Location, Route, RouteSegment } from '../types';
 
 const containerStyle = {
@@ -42,12 +42,41 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
   const mapRef = useRef<google.maps.Map | null>(null);
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
+  const originMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const destinationMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
 
   const getSafetyColor = (score: number): string => {
     if (score >= 80) return '#28a745'; // Green
     if (score >= 60) return '#ffc107'; // Yellow
     if (score >= 40) return '#fd7e14'; // Orange
     return '#dc3545'; // Red
+  };
+
+  const createAdvancedMarker = (position: google.maps.LatLngLiteral, title: string, color: string, location: Location) => {
+    if (!mapRef.current) return null;
+
+    const markerElement = document.createElement('div');
+    markerElement.style.width = '32px';
+    markerElement.style.height = '32px';
+    markerElement.style.borderRadius = '50%';
+    markerElement.style.backgroundColor = color;
+    markerElement.style.border = '3px solid white';
+    markerElement.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+    markerElement.style.cursor = 'pointer';
+    markerElement.title = title;
+
+    const marker = new google.maps.marker.AdvancedMarkerElement({
+      map: mapRef.current,
+      position: position,
+      content: markerElement,
+      title: title
+    });
+
+    marker.addListener('click', () => {
+      if (onMarkerClick) onMarkerClick(location);
+    });
+
+    return marker;
   };
 
   useEffect(() => {
@@ -86,51 +115,55 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
     }
   }, [route, getSafetyColor]);
 
+  useEffect(() => {
+    if (originMarkerRef.current) {
+      originMarkerRef.current.map = null;
+      originMarkerRef.current = null;
+    }
+
+    if (origin && mapRef.current) {
+      const position = { lat: origin.latitude, lng: origin.longitude };
+      originMarkerRef.current = createAdvancedMarker(position, 'Origin', '#28a745', origin);
+    }
+  }, [origin, onMarkerClick]);
+
+  useEffect(() => {
+    if (destinationMarkerRef.current) {
+      destinationMarkerRef.current.map = null;
+      destinationMarkerRef.current = null;
+    }
+
+    if (destination && mapRef.current) {
+      const position = { lat: destination.latitude, lng: destination.longitude };
+      destinationMarkerRef.current = createAdvancedMarker(position, 'Destination', '#dc3545', destination);
+    }
+  }, [destination, onMarkerClick]);
+
+  useEffect(() => {
+    return () => {
+      if (originMarkerRef.current) {
+        originMarkerRef.current.map = null;
+      }
+      if (destinationMarkerRef.current) {
+        destinationMarkerRef.current.map = null;
+      }
+    };
+  }, []);
+
   const handleMapLoad = (map: google.maps.Map) => {
     mapRef.current = map;
     if (onMapLoad) onMapLoad(map);
   };
 
-  const handleMarkerClick = (location: Location) => {
-    if (onMarkerClick) onMarkerClick(location);
-  };
-
-  const originPosition = origin ? { lat: origin.latitude, lng: origin.longitude } : null;
-  const destinationPosition = destination ? { lat: destination.latitude, lng: destination.longitude } : null;
-
   return (
-    <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''} libraries={["places"]}>
-      <GoogleMap
+    <GoogleMap
         mapContainerStyle={containerStyle}
         center={center}
         zoom={12}
         options={mapOptions}
         onLoad={handleMapLoad}
       >
-        {originPosition && (
-          <Marker
-            position={originPosition}
-            title="Origin"
-            icon={{
-              url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
-              scaledSize: new google.maps.Size(32, 32)
-            }}
-            onClick={() => handleMarkerClick(origin!)}
-          />
-        )}
-        {destinationPosition && (
-          <Marker
-            position={destinationPosition}
-            title="Destination"
-            icon={{
-              url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-              scaledSize: new google.maps.Size(32, 32)
-            }}
-            onClick={() => handleMarkerClick(destination!)}
-          />
-        )}
       </GoogleMap>
-    </LoadScript>
   );
 };
 

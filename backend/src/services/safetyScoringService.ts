@@ -18,11 +18,451 @@ import {
 
 import { CrimeDataService } from './crimeDataService';
 
+// Real-time scoring cache interface
+interface SafetyScoreCache {
+  [locationKey: string]: {
+    score: SafetyScore;
+    timestamp: number;
+    expiresAt: number;
+  };
+}
+
+// Environmental factors for real-time scoring
+interface EnvironmentalFactors {
+  weather?: {
+    condition: 'clear' | 'cloudy' | 'rainy' | 'foggy';
+    visibility: number; // 0-100
+    temperature: number;
+  };
+  events?: {
+    nearbyEvents: string[];
+    crowdDensity: 'low' | 'medium' | 'high';
+    emergencyServices: boolean;
+  };
+  traffic?: {
+    congestionLevel: number; // 0-100
+    avgSpeed: number; // km/h
+    incidents: number;
+  };
+}
+
 export class SafetyScoringService {
   private crimeDataService: CrimeDataService;
+  private scoreCache: SafetyScoreCache = {};
+  private readonly CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly REAL_TIME_UPDATE_INTERVAL = 30 * 1000; // 30 seconds
+  private updateTimer?: NodeJS.Timeout;
 
   constructor() {
     this.crimeDataService = new CrimeDataService();
+    this.startRealTimeUpdates();
+  }
+
+  /**
+   * Start real-time safety score updates
+   */
+  private startRealTimeUpdates(): void {
+    this.updateTimer = setInterval(() => {
+      this.updateCachedScores();
+    }, this.REAL_TIME_UPDATE_INTERVAL);
+  }
+
+  /**
+   * Stop real-time updates (cleanup)
+   */
+  public stopRealTimeUpdates(): void {
+    if (this.updateTimer) {
+      clearInterval(this.updateTimer);
+      this.updateTimer = undefined;
+    }
+  }
+
+  /**
+   * Get cached safety score or calculate new one with real-time factors
+   * @param location Location to score
+   * @param timeContext Current time context
+   * @param forceRefresh Skip cache and recalculate
+   * @returns Safety score with real-time updates
+   */
+  public async getRealTimeSafetyScore(
+    location: Location,
+    timeContext?: TimeContext,
+    forceRefresh: boolean = false
+  ): Promise<SafetyScore> {
+    const locationKey = this.generateLocationKey(location);
+    const now = Date.now();
+
+    // Check cache first (unless force refresh)
+    if (!forceRefresh && this.scoreCache[locationKey] && this.scoreCache[locationKey].expiresAt > now) {
+      const cached = this.scoreCache[locationKey];
+
+      // Apply real-time time factor updates to cached score
+      const updatedScore = await this.applyRealTimeFactors(cached.score, location, timeContext);
+      return updatedScore;
+    }
+
+    // Calculate new score with real-time factors
+    const request: SafetyScoreRequest = {
+      location,
+      timeContext,
+      factors: {
+        includeCrimeData: true,
+        includeEnvironmental: true,
+        includeRealTime: true,
+        includeHistorical: true
+      }
+    };
+
+    const response = await this.calculateLocationSafety(request);
+    const enhancedScore = await this.applyRealTimeFactors(response.safetyScore, location, timeContext);
+
+    // Cache the enhanced score
+    this.scoreCache[locationKey] = {
+      score: enhancedScore,
+      timestamp: now,
+      expiresAt: now + this.CACHE_DURATION_MS
+    };
+
+    return enhancedScore;
+  }
+
+  /**
+   * Update cached scores with current environmental factors
+   */
+  private async updateCachedScores(): Promise<void> {
+    const now = Date.now();
+    const currentTime = new Date().toISOString();
+
+    for (const [locationKey, cached] of Object.entries(this.scoreCache)) {
+      // Remove expired entries
+      if (cached.expiresAt <= now) {
+        delete this.scoreCache[locationKey];
+        continue;
+      }
+
+      // Update time factors for active scores
+      const location = this.parseLocationKey(locationKey);
+      if (location) {
+        const timeContext: TimeContext = { currentTime };
+        const updatedScore = await this.applyRealTimeFactors(cached.score, location, timeContext);
+
+        // Update cache with new time-sensitive factors
+        this.scoreCache[locationKey] = {
+          ...cached,
+          score: updatedScore
+        };
+      }
+    }
+  }
+
+  /**
+   * Apply real-time environmental and time factors to safety score
+   */
+  private async applyRealTimeFactors(
+    baseScore: SafetyScore,
+    location: Location,
+    timeContext?: TimeContext
+  ): Promise<SafetyScore> {
+    // Get current environmental factors
+    const envFactors = await this.getCurrentEnvironmentalFactors(location);
+
+    // Recalculate time factor with current time
+    let updatedTimeFactor = baseScore.timeFactor;
+    if (timeContext?.currentTime) {
+      updatedTimeFactor = this.calculateTimeFactorScore(timeContext);
+    }
+
+    // Apply environmental adjustments
+    let envAdjustment = 0;
+
+    if (envFactors.weather) {
+      envAdjustment += this.calculateWeatherAdjustment(envFactors.weather);
+    }
+
+    if (envFactors.traffic) {
+      envAdjustment += this.calculateTrafficAdjustment(envFactors.traffic);
+    }
+
+    if (envFactors.events) {
+      envAdjustment += this.calculateEventsAdjustment(envFactors.events);
+    }
+
+    // Recalculate overall score with real-time factors
+    const realTimeOverall = Math.round(
+      (baseScore.crimeRisk * 0.4) +
+      (updatedTimeFactor * 0.3) +
+      (baseScore.populationDensity * 0.2) +
+      (baseScore.lightingLevel * 0.1) +
+      envAdjustment
+    );
+
+    // Update factors array
+    const updatedFactors = [...baseScore.factors];
+
+    // Update or add time factor
+    const timeFactorIndex = updatedFactors.findIndex(f => f.type === 'time');
+    if (timeFactorIndex >= 0) {
+      updatedFactors[timeFactorIndex] = {
+        ...updatedFactors[timeFactorIndex],
+        value: updatedTimeFactor,
+        description: `Current time safety factor (${new Date().toLocaleTimeString('en-ZA')})`
+      };
+    }
+
+    // Add environmental factors if significant
+    if (Math.abs(envAdjustment) > 2) {
+      updatedFactors.push({
+        type: 'weather',
+        impact: envAdjustment > 0 ? 'positive' : 'negative',
+        weight: 0.05,
+        description: 'Current environmental conditions',
+        value: Math.round(50 + envAdjustment * 10)
+      });
+    }
+
+    return {
+      ...baseScore,
+      overall: Math.max(0, Math.min(100, realTimeOverall)),
+      timeFactor: updatedTimeFactor,
+      explanation: this.generateRealTimeExplanation(baseScore, envFactors, updatedTimeFactor),
+      lastCalculated: new Date(),
+      factors: updatedFactors
+    };
+  }
+
+  /**
+   * Get current environmental factors for a location
+   */
+  private async getCurrentEnvironmentalFactors(location: Location): Promise<EnvironmentalFactors> {
+    // In a real implementation, this would fetch from weather APIs, traffic APIs, events APIs
+    // For hackathon, we'll simulate some realistic factors
+
+    const currentHour = new Date().getHours();
+    const factors: EnvironmentalFactors = {
+      weather: {
+        condition: this.simulateWeatherCondition(),
+        visibility: this.simulateVisibility(),
+        temperature: this.simulateTemperature()
+      },
+      traffic: {
+        congestionLevel: this.simulateTrafficLevel(currentHour),
+        avgSpeed: this.simulateAverageSpeed(currentHour),
+        incidents: Math.random() > 0.95 ? 1 : 0 // 5% chance of traffic incident
+      },
+      events: {
+        nearbyEvents: this.simulateNearbyEvents(location, currentHour),
+        crowdDensity: this.simulateCrowdDensity(currentHour),
+        emergencyServices: Math.random() > 0.98 // 2% chance of emergency activity
+      }
+    };
+
+    return factors;
+  }
+
+  /**
+   * Generate location cache key
+   */
+  private generateLocationKey(location: Location): string {
+    return `${location.latitude.toFixed(4)},${location.longitude.toFixed(4)}`;
+  }
+
+  /**
+   * Parse location from cache key
+   */
+  private parseLocationKey(locationKey: string): Location | null {
+    const [lat, lng] = locationKey.split(',');
+    if (lat && lng) {
+      return {
+        latitude: parseFloat(lat),
+        longitude: parseFloat(lng)
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Calculate weather impact on safety
+   */
+  private calculateWeatherAdjustment(weather: EnvironmentalFactors['weather']): number {
+    if (!weather) return 0;
+
+    let adjustment = 0;
+
+    // Visibility impact
+    if (weather.visibility < 50) {
+      adjustment -= 5; // Poor visibility reduces safety
+    } else if (weather.visibility > 80) {
+      adjustment += 2; // Good visibility improves safety
+    }
+
+    // Weather condition impact
+    switch (weather.condition) {
+      case 'clear':
+        adjustment += 1;
+        break;
+      case 'rainy':
+        adjustment -= 3; // Rain reduces visibility and increases risk
+        break;
+      case 'foggy':
+        adjustment -= 4; // Fog significantly impacts visibility
+        break;
+      case 'cloudy':
+        break; // Neutral
+    }
+
+    // Temperature extremes
+    if (weather.temperature < 5 || weather.temperature > 35) {
+      adjustment -= 1; // Extreme temperatures may affect alertness
+    }
+
+    return adjustment;
+  }
+
+  /**
+   * Calculate traffic impact on safety
+   */
+  private calculateTrafficAdjustment(traffic: EnvironmentalFactors['traffic']): number {
+    if (!traffic) return 0;
+
+    let adjustment = 0;
+
+    // High congestion can provide safety through visibility but also stress
+    if (traffic.congestionLevel > 70) {
+      adjustment += 1; // More people around, but also stress
+    } else if (traffic.congestionLevel < 20) {
+      adjustment -= 1; // Too quiet might be concerning
+    }
+
+    // Active incidents reduce safety
+    adjustment -= traffic.incidents * 2;
+
+    return adjustment;
+  }
+
+  /**
+   * Calculate events impact on safety
+   */
+  private calculateEventsAdjustment(events: EnvironmentalFactors['events']): number {
+    if (!events) return 0;
+
+    let adjustment = 0;
+
+    // Emergency services nearby can be good or bad
+    if (events.emergencyServices) {
+      adjustment -= 3; // Indicates active incident, reduce safety
+    }
+
+    // Crowd density impact
+    switch (events.crowdDensity) {
+      case 'high':
+        adjustment += 2; // More people generally safer
+        break;
+      case 'low':
+        adjustment -= 1; // Too quiet can be concerning
+        break;
+      case 'medium':
+        adjustment += 1; // Optimal crowd level
+        break;
+    }
+
+    // Nearby events can improve safety through activity
+    adjustment += Math.min(2, events.nearbyEvents.length);
+
+    return adjustment;
+  }
+
+  /**
+   * Generate real-time explanation
+   */
+  private generateRealTimeExplanation(
+    baseScore: SafetyScore,
+    envFactors: EnvironmentalFactors,
+    currentTimeFactor: number
+  ): string {
+    let explanation = baseScore.explanation;
+
+    // Add real-time context
+    const timeChange = currentTimeFactor - baseScore.timeFactor;
+    if (Math.abs(timeChange) > 5) {
+      if (timeChange > 0) {
+        explanation += ' Current time conditions have improved safety.';
+      } else {
+        explanation += ' Current time conditions have reduced safety.';
+      }
+    }
+
+    // Add weather context
+    if (envFactors.weather?.condition === 'rainy' || envFactors.weather?.visibility! < 50) {
+      explanation += ' Current weather conditions may impact visibility.';
+    }
+
+    // Add traffic context
+    if (envFactors.traffic?.incidents! > 0) {
+      explanation += ' Traffic incidents nearby may affect navigation.';
+    }
+
+    return explanation;
+  }
+
+  // Simulation methods for hackathon demo
+  private simulateWeatherCondition(): 'clear' | 'cloudy' | 'rainy' | 'foggy' {
+    const rand = Math.random();
+    if (rand < 0.6) return 'clear';
+    if (rand < 0.8) return 'cloudy';
+    if (rand < 0.95) return 'rainy';
+    return 'foggy';
+  }
+
+  private simulateVisibility(): number {
+    return Math.round(Math.random() * 40 + 60); // 60-100
+  }
+
+  private simulateTemperature(): number {
+    return Math.round(Math.random() * 20 + 10); // 10-30°C (Cape Town range)
+  }
+
+  private simulateTrafficLevel(hour: number): number {
+    // Rush hour simulation
+    if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
+      return Math.round(Math.random() * 40 + 60); // 60-100
+    }
+    return Math.round(Math.random() * 60); // 0-60
+  }
+
+  private simulateAverageSpeed(hour: number): number {
+    const baseSpeed = 40; // 40 km/h base
+    if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
+      return baseSpeed - Math.round(Math.random() * 20); // Slower in rush hour
+    }
+    return baseSpeed + Math.round(Math.random() * 20);
+  }
+
+  private simulateNearbyEvents(location: Location, hour: number): string[] {
+    const events: string[] = [];
+
+    // Evening entertainment
+    if (hour >= 18 && hour <= 23) {
+      if (Math.random() > 0.7) events.push('Restaurant/bar activity');
+      if (Math.random() > 0.9) events.push('Live music venue');
+    }
+
+    // Business hours
+    if (hour >= 9 && hour <= 17) {
+      if (Math.random() > 0.6) events.push('Business district activity');
+    }
+
+    // Weekend events (simplified simulation)
+    if (new Date().getDay() === 6 || new Date().getDay() === 0) {
+      if (Math.random() > 0.8) events.push('Weekend market/event');
+    }
+
+    return events;
+  }
+
+  private simulateCrowdDensity(hour: number): 'low' | 'medium' | 'high' {
+    if (hour >= 2 && hour <= 6) return 'low';
+    if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 20)) return 'high';
+    return 'medium';
   }
 
   /**

@@ -3,6 +3,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Container, Box, Button, Typography, AppBar, Toolbar, useMediaQuery } from '@mui/material';
 import { LocationOn, Directions } from '@mui/icons-material';
+import { LoadScript } from '@react-google-maps/api';
 import LocationInput from './components/LocationInput';
 import MapView from './components/MapView';
 import RouteSelector from './components/RouteSelector';
@@ -96,8 +97,12 @@ function App() {
   const selectedRouteData = routes.find(r => r.id === selectedRoute) || null;
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <LoadScript
+      googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''}
+      libraries={['places'] as any}
+    >
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
       <AppBar position="static" color="primary" sx={{ mb: 2 }}>
         <Toolbar>
           <LocationOn sx={{ mr: 1 }} />
@@ -176,7 +181,8 @@ function App() {
           </>
         )}
       </Container>
-    </ThemeProvider>
+      </ThemeProvider>
+    </LoadScript>
   );
 }
 

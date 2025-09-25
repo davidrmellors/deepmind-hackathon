@@ -68,14 +68,14 @@
 - [x] T028 GET /api/safety/crime-data endpoint in backend/src/api/safety.ts
 
 ## Phase 3.4: Core Implementation - Frontend (Hours 2-4, parallel with backend)
-- [ ] T029 [P] MapView component with Google Maps integration in frontend/src/components/MapView.tsx
-- [ ] T030 [P] RouteSelector component for displaying route alternatives in frontend/src/components/RouteSelector.tsx
-- [ ] T031 [P] SafetyIndicator component for safety scores in frontend/src/components/SafetyIndicator.tsx
-- [ ] T032 [P] LocationInput component for origin/destination in frontend/src/components/LocationInput.tsx
-- [ ] T033 Main App component integrating all components in frontend/src/App.tsx
-- [ ] T034 RoutingService for API communication in frontend/src/services/routingService.ts
-- [ ] T035 SafetyService for safety data in frontend/src/services/safetyService.ts
-- [ ] T036 Mobile responsive design with Material-UI breakpoints in frontend/src/styles/
+- [x] T029 [P] MapView component with Google Maps integration in frontend/src/components/MapView.tsx
+- [x] T030 [P] RouteSelector component for displaying route alternatives in frontend/src/components/RouteSelector.tsx
+- [x] T031 [P] SafetyIndicator component for safety scores in frontend/src/components/SafetyIndicator.tsx
+- [x] T032 [P] LocationInput component for origin/destination in frontend/src/components/LocationInput.tsx
+- [x] T033 Main App component integrating all components in frontend/src/App.tsx
+- [x] T034 RoutingService for API communication in frontend/src/services/routingService.ts
+- [x] T035 SafetyService for safety data in frontend/src/services/safetyService.ts
+- [x] T036 Mobile responsive design with Material-UI breakpoints in frontend/src/styles/
 
 ## Phase 3.5: Integration & AI (Hours 4-5)
 - [ ] T037 Google Routes API integration in backend/src/services/googleMapsService.ts

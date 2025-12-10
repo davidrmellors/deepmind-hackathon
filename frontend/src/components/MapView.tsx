@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { GoogleMap, LoadScript, Marker, DirectionsRenderer } from '@react-google-maps/api';
+import React, { useEffect, useRef, useState } from 'react';
+import { GoogleMap, DirectionsRenderer } from '@react-google-maps/api';
 import { Location, Route, RouteSegment } from '../types';
 
 const containerStyle = {
@@ -40,8 +40,9 @@ interface MapViewProps {
 
 const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad, onMarkerClick }) => {
   const mapRef = useRef<google.maps.Map | null>(null);
-  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null);
-  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
+  const originMarkerRef = useRef<google.maps.Marker | null>(null);
+  const destinationMarkerRef = useRef<google.maps.Marker | null>(null);
+  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
 
   const getSafetyColor = (score: number): string => {
     if (score >= 80) return '#28a745'; // Green
@@ -62,7 +63,9 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
   }, []);
 
   useEffect(() => {
-    if (route && directionsServiceRef.current && directionsRendererRef.current) {
+    if (route && window.google) {
+      const directionsService = new google.maps.DirectionsService();
+
       const request: google.maps.DirectionsRequest = {
         origin: { lat: route.origin.latitude, lng: route.origin.longitude },
         destination: { lat: route.destination.latitude, lng: route.destination.longitude },
@@ -71,7 +74,7 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
         optimizeWaypoints: false
       };
 
-      directionsServiceRef.current.route(request, (result, status) => {
+      directionsService.route(request, (result, status) => {
         if (status === 'OK' && result) {
           directionsRendererRef.current?.setDirections(result);
 
@@ -83,6 +86,8 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
           });
         }
       });
+    } else {
+      setDirections(null);
     }
   }, [route, getSafetyColor]);
 
@@ -90,13 +95,6 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
     mapRef.current = map;
     if (onMapLoad) onMapLoad(map);
   };
-
-  const handleMarkerClick = (location: Location) => {
-    if (onMarkerClick) onMarkerClick(location);
-  };
-
-  const originPosition = origin ? { lat: origin.latitude, lng: origin.longitude } : null;
-  const destinationPosition = destination ? { lat: destination.latitude, lng: destination.longitude } : null;
 
   return (
     <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''} libraries={["places"]}>
@@ -130,7 +128,6 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
           />
         )}
       </GoogleMap>
-    </LoadScript>
   );
 };
 

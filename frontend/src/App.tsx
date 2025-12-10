@@ -2,7 +2,8 @@ import React, { useState, useCallback } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Container, Box, Button, Typography, AppBar, Toolbar, useMediaQuery } from '@mui/material';
-import { LocationOn, Directions } from '@mui/icons-material';
+import { LocationOn, Directions, OpenInNew } from '@mui/icons-material';
+import { LoadScript } from '@react-google-maps/api';
 import LocationInput from './components/LocationInput';
 import MapView from './components/MapView';
 import RouteSelector from './components/RouteSelector';
@@ -95,9 +96,41 @@ function App() {
 
   const selectedRouteData = routes.find(r => r.id === selectedRoute) || null;
 
+  const openInGoogleMaps = useCallback(() => {
+    if (!selectedRouteData) return;
+
+    const origin = `${selectedRouteData.origin.latitude},${selectedRouteData.origin.longitude}`;
+    const destination = `${selectedRouteData.destination.latitude},${selectedRouteData.destination.longitude}`;
+
+    // Use a clean approach with just origin and destination
+    // Google Maps will provide multiple route options and user can choose
+    let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`;
+
+    // Add travel mode
+    url += '&travelmode=driving';
+
+    // Add route preferences based on the selected route type to influence Google's routing
+    if (selectedRouteData.alternativeRank === 1) {
+      // Fastest route - avoid tolls and ferries for fastest option
+      url += '&avoid=tolls,ferries';
+    } else if (selectedRouteData.alternativeRank === 2) {
+      // Safest route - avoid highways to prefer local roads (generally safer/well-lit)
+      url += '&avoid=highways';
+    } else {
+      // Balanced route - avoid tolls only
+      url += '&avoid=tolls';
+    }
+
+    window.open(url, '_blank');
+  }, [selectedRouteData]);
+
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <LoadScript
+      googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''}
+      libraries={['places', 'marker'] as any}
+    >
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
       <AppBar position="static" color="primary" sx={{ mb: 2 }}>
         <Toolbar>
           <LocationOn sx={{ mr: 1 }} />
@@ -163,9 +196,20 @@ function App() {
 
             {selectedRouteData && (
               <Box sx={{ mt: 4 }}>
-                <Typography variant="h5" gutterBottom>
-                  Selected Route Details
-                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h5" gutterBottom sx={{ mb: 0 }}>
+                    Selected Route Details
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    startIcon={<OpenInNew />}
+                    onClick={openInGoogleMaps}
+                    size={isMobile ? 'small' : 'medium'}
+                    sx={{ minWidth: isMobile ? 'auto' : '160px' }}
+                  >
+                    {isMobile ? 'Open' : 'Open in Google Maps'}
+                  </Button>
+                </Box>
                 <MapView
                   origin={selectedRouteData.origin}
                   destination={selectedRouteData.destination}
@@ -176,7 +220,8 @@ function App() {
           </>
         )}
       </Container>
-    </ThemeProvider>
+      </ThemeProvider>
+    </LoadScript>
   );
 }
 

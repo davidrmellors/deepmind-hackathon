@@ -49,8 +49,36 @@ export interface Route {
   segments: RouteSegment[];
   alternativeRank: number;
   googleRouteId?: string;
+  aiAnalysis?: RouteAIAnalysis;
   createdAt: Date;
   lastUpdated: Date;
+}
+
+export interface RouteAIAnalysis {
+  segmentAnalysis: SegmentAnalysisResult[];
+  recommendations: SafetyRecommendation[];
+  lastAnalyzed: Date;
+  aiProvider: string;
+}
+
+export interface SegmentAnalysisResult {
+  segment: RouteSegment;
+  detailedAnalysis: {
+    riskFactors: RiskFactor[];
+    safetyRecommendations: SafetyRecommendation[];
+    alternativeSegments?: RouteSegment[];
+    confidenceLevel: number;
+  };
+  alerts: SafetyAlert[];
+}
+
+export interface RiskFactor {
+  type: 'crime_hotspot' | 'poor_visibility' | 'isolated_area' | 'high_traffic' | 'construction' | 'weather_impact';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  location: Location;
+  description: string;
+  mitigationSuggestions: string[];
+  timeRelevant: boolean;
 }
 
 export interface RouteSegment {
@@ -227,6 +255,7 @@ export interface RouteRequest {
   waypoints?: Location[];
   preferences?: UserPreferences;
   options?: RouteOptions;
+  timeContext?: TimeContext;
 }
 
 export interface RouteOptions {
@@ -288,6 +317,7 @@ export interface SafetyRecommendation {
   description: string;
   actionable: boolean;
   estimatedImprovement?: number;
+  aiGenerated?: boolean;
 }
 
 export interface ResponseMetadata {
@@ -310,4 +340,54 @@ export interface ErrorResponse {
   details?: any;
   timestamp: Date;
   requestId?: string;
+}
+
+// Google Maps Service Types
+export interface RouteCalculationRequest {
+  origin: Location;
+  destination: Location;
+  waypoints?: Location[];
+  preferences?: {
+    safetyPriority?: number;
+    travelMode?: TravelMode;
+    avoidTolls?: boolean;
+    avoidHighways?: boolean;
+  };
+  timeContext?: TimeContext;
+  options?: {
+    maxRoutes?: number;
+  };
+}
+
+export interface RouteCalculationResponse {
+  routes: Route[];
+  metadata: {
+    calculationTime: number;
+    routesRequested: number;
+    routesReturned: number;
+    dataSource: string;
+    fallbackUsed: boolean;
+    apiVersion: string;
+  };
+}
+
+// AI Explanation Service Types
+export interface AIExplanationRequest {
+  safetyScore: SafetyScore;
+  location: Location;
+  crimeData?: CrimeData;
+  timeContext?: TimeContext;
+}
+
+export interface AIExplanationResponse {
+  explanation: string;
+  recommendations: SafetyRecommendation[];
+  confidence: number;
+  generatedAt: Date;
+  metadata: {
+    promptTokens: number;
+    responseTokens: number;
+    model: string;
+    temperature: number;
+  };
 }

@@ -7,10 +7,14 @@ import {
   SafetyScore,
   RouteSegment,
   ResponseMetadata,
-  ErrorResponse
+  ErrorResponse,
+  RouteAIAnalysis,
+  SegmentAnalysisResult
 } from '../types';
 import { SafetyScoringService } from '../services/safetyScoringService';
 import { LocationService } from '../services/locationService';
+import { RouteAnalysisService } from '../services/routeAnalysisService';
+import { AIExplanationService } from '../services/aiExplanationService';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
@@ -19,6 +23,8 @@ const router = Router();
 const routeCache = new Map<string, Route>();
 const safetyScoringService = new SafetyScoringService();
 const locationService = new LocationService();
+const routeAnalysisService = new RouteAnalysisService();
+const aiExplanationService = new AIExplanationService();
 
 /**
  * POST /api/routes/calculate
@@ -69,9 +75,53 @@ router.post('/calculate', async (req: Request, res: Response) => {
     // Generate multiple route alternatives (simulating Google Routes API)
     const routes = await generateRouteAlternatives(routeRequest);
 
-    // Calculate safety scores for each route
+    // Calculate safety scores for each route with their characteristics
     for (let i = 0; i < routes.length; i++) {
-      routes[i] = await safetyScoringService.calculateRouteSafety(routes[i]);
+      const routeCharacteristics = {
+        routeType: i === 0 ? 'fastest' : i === 1 ? 'balanced' : 'safest',
+        safetyBias: i === 0 ? -10 : i === 1 ? 0 : 15,
+        lightingBias: i === 0 ? -5 : i === 1 ? 0 : 10,
+        populationBias: i === 0 ? -5 : i === 1 ? 0 : 12
+      };
+      routes[i] = await safetyScoringService.calculateRouteSafety(routes[i], undefined, routeCharacteristics);
+
+      // Add AI-powered route analysis and explanations
+      try {
+        const timeContext = routeRequest.timeContext || { currentTime: new Date().toISOString() };
+
+        // Generate AI-powered safety explanation for the route
+        const aiExplanation = await aiExplanationService.generateRouteSafetyExplanation(
+          routes[i],
+          routes // Pass all routes for comparison
+        );
+
+        // Update the route's safety score explanation with AI insights
+        routes[i].safetyScore.explanation = aiExplanation;
+
+        // Get detailed segment analysis with AI insights
+        const segmentAnalysis = await routeAnalysisService.analyzeRouteSegments(
+          routes[i],
+          timeContext,
+          { detailLevel: 'detailed', aiEnhanced: true }
+        );
+
+        // Generate route-level recommendations using AI analysis
+        const routeRecommendations = await routeAnalysisService.generateRouteRecommendations(
+          routes[i],
+          timeContext
+        );
+
+        // Add AI insights to route metadata
+        routes[i].aiAnalysis = {
+          segmentAnalysis,
+          recommendations: routeRecommendations,
+          lastAnalyzed: new Date(),
+          aiProvider: 'gemini-1.5-flash-latest'
+        };
+      } catch (aiError) {
+        console.warn(`AI analysis failed for route ${i}:`, aiError);
+        // Continue without AI analysis - fallback to rule-based explanations
+      }
     }
 
     // Rank routes
@@ -190,30 +240,156 @@ router.get('/:routeId/safety', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/routes/:routeId/ai-analysis
+ * Get AI-powered detailed analysis for route
+ */
+router.get('/:routeId/ai-analysis', async (req: Request, res: Response) => {
+  try {
+    const { routeId } = req.params;
+    const currentTime = req.query.currentTime as string;
+
+    const route = routeCache.get(routeId);
+    if (!route) {
+      const error: ErrorResponse = {
+        error: 'ROUTE_NOT_FOUND',
+        message: `Route with ID ${routeId} not found`,
+        timestamp: new Date(),
+        requestId: req.headers['x-request-id'] as string || uuidv4()
+      };
+      return res.status(404).json(error);
+    }
+
+    try {
+      const timeContext = currentTime ? { currentTime } : { currentTime: new Date().toISOString() };
+
+      // Generate fresh AI analysis
+      const aiExplanation = await aiExplanationService.generateRouteSafetyExplanation(route);
+      const segmentAnalysis = await routeAnalysisService.analyzeRouteSegments(
+        route,
+        timeContext,
+        { detailLevel: 'comprehensive', aiEnhanced: true }
+      );
+      const recommendations = await routeAnalysisService.generateRouteRecommendations(route, timeContext);
+
+      const aiAnalysis: RouteAIAnalysis = {
+        segmentAnalysis,
+        recommendations,
+        lastAnalyzed: new Date(),
+        aiProvider: 'gemini-1.5-flash-latest'
+      };
+
+      res.status(200).json({
+        routeId: route.id,
+        aiExplanation,
+        analysis: aiAnalysis,
+        metadata: {
+          generatedAt: new Date(),
+          confidence: segmentAnalysis.reduce((sum, seg) => sum + seg.detailedAnalysis.confidenceLevel, 0) / segmentAnalysis.length,
+          segmentCount: segmentAnalysis.length
+        }
+      });
+
+    } catch (aiError) {
+      console.error('AI analysis failed:', aiError);
+      const fallbackResponse = {
+        routeId: route.id,
+        aiExplanation: 'AI analysis temporarily unavailable - using fallback safety assessment',
+        analysis: {
+          segmentAnalysis: [],
+          recommendations: [{
+            type: 'precaution' as const,
+            priority: 'medium' as const,
+            description: 'Stay alert and follow general safety practices',
+            actionable: true,
+            estimatedImprovement: 10
+          }],
+          lastAnalyzed: new Date(),
+          aiProvider: 'fallback'
+        },
+        metadata: {
+          generatedAt: new Date(),
+          confidence: route.safetyScore.confidenceLevel,
+          segmentCount: route.segments.length,
+          fallbackUsed: true
+        }
+      };
+      res.status(200).json(fallbackResponse);
+    }
+
+  } catch (error) {
+    console.error('AI analysis endpoint error:', error);
+    const errorResponse: ErrorResponse = {
+      error: 'AI_ANALYSIS_FAILED',
+      message: 'Failed to generate AI analysis',
+      details: { error: error instanceof Error ? error.message : 'Unknown error' },
+      timestamp: new Date(),
+      requestId: req.headers['x-request-id'] as string || uuidv4()
+    };
+    res.status(500).json(errorResponse);
+  }
+});
+
 // Helper functions
 
 async function generateRouteAlternatives(request: RouteRequest): Promise<Route[]> {
   const maxRoutes = request.options?.maxRoutes || 3;
   const routes: Route[] = [];
 
-  // For demo purposes, we'll generate synthetic routes
+  // For demo purposes, we'll generate synthetic routes with distinct characteristics
   // In a real implementation, this would call Google Routes API
 
   const baseDistance = calculateDistance(request.origin, request.destination);
   const baseDuration = Math.round(baseDistance * 0.06); // ~60 seconds per km
 
   for (let i = 0; i < maxRoutes; i++) {
-    const routeId = `route_${i === 0 ? 'fastest' : i === 1 ? 'safest' : 'balanced'}_${uuidv4().slice(0, 8)}`;
+    const routeId = `route_${i === 0 ? 'fastest' : i === 1 ? 'balanced' : 'safest'}_${uuidv4().slice(0, 8)}`;
 
-    // Generate variations for different route types
-    const distanceMultiplier = i === 0 ? 1.0 : i === 1 ? 1.15 : 1.08; // Fastest, safest, balanced
-    const durationMultiplier = i === 0 ? 1.0 : i === 1 ? 1.2 : 1.1;
+    // Generate variations for different route types with distinct safety profiles
+    let distanceMultiplier: number;
+    let durationMultiplier: number;
+    let routeCharacteristics: any;
+
+    if (i === 0) {
+      // Fastest route - highways, potentially riskier areas
+      distanceMultiplier = 1.0;
+      durationMultiplier = 1.0;
+      routeCharacteristics = {
+        routeType: 'fastest',
+        primaryRoadType: 'highway',
+        safetyBias: -10, // Slightly less safe due to speed priority
+        lightingBias: -5,
+        populationBias: -5
+      };
+    } else if (i === 1) {
+      // Balanced route - mix of road types
+      distanceMultiplier = 1.08;
+      durationMultiplier = 1.1;
+      routeCharacteristics = {
+        routeType: 'balanced',
+        primaryRoadType: 'arterial',
+        safetyBias: 0, // Neutral bias
+        lightingBias: 0,
+        populationBias: 0
+      };
+    } else {
+      // Safest route - well-lit, populated areas, longer but safer
+      distanceMultiplier = 1.15;
+      durationMultiplier = 1.2;
+      routeCharacteristics = {
+        routeType: 'safest',
+        primaryRoadType: 'local',
+        safetyBias: 15, // Higher safety due to route selection
+        lightingBias: 10,
+        populationBias: 12
+      };
+    }
 
     const route: Route = {
       id: routeId,
       origin: request.origin,
       destination: request.destination,
-      waypoints: request.waypoints || [],
+      waypoints: generateRouteWaypoints(request.origin, request.destination, i, 3 + i),
       totalDistance: Math.round(baseDistance * distanceMultiplier),
       estimatedDuration: Math.round(baseDuration * durationMultiplier),
       safetyScore: {
@@ -228,7 +404,7 @@ async function generateRouteAlternatives(request: RouteRequest): Promise<Route[]
         lastCalculated: new Date(),
         factors: []
       },
-      segments: await generateRouteSegments(request.origin, request.destination, i),
+      segments: await generateRouteSegments(request.origin, request.destination, i, routeCharacteristics),
       alternativeRank: i + 1,
       createdAt: new Date(),
       lastUpdated: new Date()
@@ -240,31 +416,46 @@ async function generateRouteAlternatives(request: RouteRequest): Promise<Route[]
   return routes;
 }
 
-async function generateRouteSegments(origin: Location, destination: Location, routeIndex: number): Promise<RouteSegment[]> {
+async function generateRouteSegments(origin: Location, destination: Location, routeIndex: number, characteristics: any): Promise<RouteSegment[]> {
   const segments: RouteSegment[] = [];
   const numSegments = 3 + routeIndex; // Different routes have different segment counts
 
+  // Create different route paths based on route type
+  const waypoints = generateRouteWaypoints(origin, destination, routeIndex, numSegments);
+
   for (let i = 0; i < numSegments; i++) {
-    const progress = (i + 1) / numSegments;
-    const startLat = origin.latitude + (destination.latitude - origin.latitude) * (i / numSegments);
-    const startLng = origin.longitude + (destination.longitude - origin.longitude) * (i / numSegments);
-    const endLat = origin.latitude + (destination.latitude - origin.latitude) * progress;
-    const endLng = origin.longitude + (destination.longitude - origin.longitude) * progress;
+    const startPoint = i === 0 ? origin : waypoints[i - 1];
+    const endPoint = i === numSegments - 1 ? destination : waypoints[i];
+
+    // Apply route characteristics to determine road type and lighting
+    let roadType: 'highway' | 'arterial' | 'local' | 'residential';
+    let lightingLevel: 'high' | 'medium' | 'low' | 'none';
+
+    if (characteristics.routeType === 'fastest') {
+      roadType = i === 0 ? 'arterial' : 'highway';
+      lightingLevel = 'medium';
+    } else if (characteristics.routeType === 'safest') {
+      roadType = i === numSegments - 1 ? 'arterial' : 'local';
+      lightingLevel = 'high';
+    } else {
+      roadType = 'arterial';
+      lightingLevel = 'medium';
+    }
 
     const segment: RouteSegment = {
       id: `segment_${i + 1}_${uuidv4().slice(0, 6)}`,
       startLocation: {
-        latitude: startLat,
-        longitude: startLng,
+        latitude: startPoint.latitude,
+        longitude: startPoint.longitude,
         address: i === 0 ? origin.address : undefined
       },
       endLocation: {
-        latitude: endLat,
-        longitude: endLng,
+        latitude: endPoint.latitude,
+        longitude: endPoint.longitude,
         address: i === numSegments - 1 ? destination.address : undefined
       },
-      distance: Math.round(calculateDistance({ latitude: startLat, longitude: startLng }, { latitude: endLat, longitude: endLng })),
-      duration: Math.round(calculateDistance({ latitude: startLat, longitude: startLng }, { latitude: endLat, longitude: endLng }) * 0.06),
+      distance: Math.round(calculateDistance(startPoint, endPoint)),
+      duration: Math.round(calculateDistance(startPoint, endPoint) * 0.06),
       safetyScore: {
         overall: 0, // Will be calculated
         crimeRisk: 0,
@@ -277,14 +468,52 @@ async function generateRouteSegments(origin: Location, destination: Location, ro
         lastCalculated: new Date(),
         factors: []
       },
-      roadType: i === 0 ? 'arterial' : routeIndex === 0 ? 'highway' : 'local',
-      lightingLevel: routeIndex === 1 ? 'high' : 'medium'
+      roadType,
+      lightingLevel
     };
 
     segments.push(segment);
   }
 
   return segments;
+}
+
+function generateRouteWaypoints(origin: Location, destination: Location, routeIndex: number, numSegments: number): Location[] {
+  const waypoints: Location[] = [];
+
+  // Calculate the direct path
+  const latDiff = destination.latitude - origin.latitude;
+  const lngDiff = destination.longitude - origin.longitude;
+
+  // Create different route variations based on routeIndex with more distinct paths
+  for (let i = 1; i < numSegments; i++) {
+    const progress = i / numSegments;
+    let lat: number, lng: number;
+
+    if (routeIndex === 0) {
+      // Route 0 (Fastest): Direct path with minimal deviation
+      const deviation = 0.001 * Math.sin(progress * Math.PI); // Very small curve
+      lat = origin.latitude + latDiff * progress + deviation;
+      lng = origin.longitude + lngDiff * progress;
+    } else if (routeIndex === 1) {
+      // Route 1 (Balanced): Moderate western curve
+      const deviation = 0.003 * Math.sin(progress * Math.PI * 0.7); // Moderate curve
+      lat = origin.latitude + latDiff * progress + deviation;
+      lng = origin.longitude + lngDiff * progress - 0.004; // More westward
+    } else {
+      // Route 2 (Safest): Longer eastern route through safer areas
+      const deviation = 0.006 * Math.sin(progress * Math.PI * 1.3); // Larger curve
+      lat = origin.latitude + latDiff * progress + deviation;
+      lng = origin.longitude + lngDiff * progress + 0.008; // Much more eastward
+    }
+
+    waypoints.push({
+      latitude: lat,
+      longitude: lng
+    });
+  }
+
+  return waypoints;
 }
 
 function calculateDistance(point1: Location, point2: Location): number {

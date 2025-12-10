@@ -199,46 +199,13 @@ const LocationInput: React.FC<LocationInputProps> = ({ label, value, onChange, t
 
 
   return (
-    <Box sx={{ width: '100%' }}>
-      <TextField
-        fullWidth
-        label={label}
-        value={inputValue}
-        onChange={handleInputChange}
-        inputRef={inputRef}
-        placeholder={`Enter ${type} location in Cape Town`}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <LocationOn />
-            </InputAdornment>
-          ),
-          endAdornment: (
-            <InputAdornment position="end">
-              {type === 'origin' && (
-                <Tooltip title="Use current location">
-                  <IconButton
-                    onClick={getCurrentLocation}
-                    disabled={gettingLocation}
-                    size="small"
-                    sx={{ mr: 1 }}
-                  >
-                    <MyLocation />
-                  </IconButton>
-                </Tooltip>
-              )}
-              <Search />
-            </InputAdornment>
-          )
-        }}
-        sx={{
-          '& .MuiInputBase-root': {
-            minHeight: isMobile ? '44px' : '40px'
-          },
-          marginBottom: 2,
-          '& .MuiInputBase-input': {
-            fontSize: isMobile ? '16px' : '14px' // Prevent zoom on iOS
-          }
+    <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''} libraries={["places"]}>
+      <Autocomplete
+        onLoad={setAutocomplete}
+        onPlaceChanged={onPlaceChanged}
+        options={{
+          componentRestrictions: { country: 'za' }, // Restrict to South Africa
+          types: ['establishment', 'geocode']
         }}
         variant="outlined"
       />

@@ -51,29 +51,16 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
     return '#dc3545'; // Red
   };
 
-  const createMarker = (position: google.maps.LatLngLiteral, title: string, color: string, location: Location) => {
-    if (!mapRef.current) return null;
-
-    const marker = new google.maps.Marker({
-      position: position,
-      map: mapRef.current,
-      title: title,
-      icon: {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 12,
-        fillColor: color,
-        fillOpacity: 1,
-        strokeColor: 'white',
-        strokeWeight: 3,
-      }
-    });
-
-    marker.addListener('click', () => {
-      if (onMarkerClick) onMarkerClick(location);
-    });
-
-    return marker;
-  };
+  useEffect(() => {
+    if (mapRef.current && !directionsServiceRef.current) {
+      directionsServiceRef.current = new google.maps.DirectionsService();
+      directionsRendererRef.current = new google.maps.DirectionsRenderer({
+        suppressMarkers: true, // We'll add custom markers
+        polylineOptions: { strokeColor: '#007bff' }
+      });
+      directionsRendererRef.current.setMap(mapRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (route && window.google) {
@@ -89,71 +76,20 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
 
       directionsService.route(request, (result, status) => {
         if (status === 'OK' && result) {
-          setDirections(result);
+          directionsRendererRef.current?.setDirections(result);
 
-          // Update map bounds to fit the route
-          if (mapRef.current && result.routes[0]) {
-            const bounds = new google.maps.LatLngBounds();
-            result.routes[0].legs.forEach(leg => {
-              leg.steps.forEach(step => {
-                bounds.extend(step.start_location);
-                bounds.extend(step.end_location);
-              });
-            });
-            mapRef.current.fitBounds(bounds);
-
-            // Add padding by setting zoom level slightly lower after bounds are set
-            setTimeout(() => {
-              const currentZoom = mapRef.current?.getZoom();
-              if (currentZoom && currentZoom > 10) {
-                mapRef.current?.setZoom(currentZoom - 1);
-              }
-            }, 100);
-          }
-        } else {
-          console.error('Directions request failed due to ' + status);
-          setDirections(null);
+          // Color-code segments based on safety
+          route.segments.forEach((segment: RouteSegment) => {
+            const color = getSafetyColor(segment.safetyScore.overall);
+            // In production, draw custom polylines for segments with colors
+            console.log(`Segment ${segment.id} safety color: ${color}`);
+          });
         }
       });
     } else {
       setDirections(null);
     }
-  }, [route]);
-
-  useEffect(() => {
-    if (originMarkerRef.current) {
-      originMarkerRef.current.setMap(null);
-      originMarkerRef.current = null;
-    }
-
-    if (origin && mapRef.current) {
-      const position = { lat: origin.latitude, lng: origin.longitude };
-      originMarkerRef.current = createMarker(position, 'Origin', '#28a745', origin);
-    }
-  }, [origin, onMarkerClick]);
-
-  useEffect(() => {
-    if (destinationMarkerRef.current) {
-      destinationMarkerRef.current.setMap(null);
-      destinationMarkerRef.current = null;
-    }
-
-    if (destination && mapRef.current) {
-      const position = { lat: destination.latitude, lng: destination.longitude };
-      destinationMarkerRef.current = createMarker(position, 'Destination', '#dc3545', destination);
-    }
-  }, [destination, onMarkerClick]);
-
-  useEffect(() => {
-    return () => {
-      if (originMarkerRef.current) {
-        originMarkerRef.current.setMap(null);
-      }
-      if (destinationMarkerRef.current) {
-        destinationMarkerRef.current.setMap(null);
-      }
-    };
-  }, []);
+  }, [route, getSafetyColor]);
 
   const handleMapLoad = (map: google.maps.Map) => {
     mapRef.current = map;
@@ -161,24 +97,34 @@ const MapView: React.FC<MapViewProps> = ({ origin, destination, route, onMapLoad
   };
 
   return (
-    <GoogleMap
+    <LoadScript googleMapsApiKey={process.env.REACT_APP_GOOGLE_MAPS_API_KEY || ''} libraries={["places"]}>
+      <GoogleMap
         mapContainerStyle={containerStyle}
         center={center}
         zoom={12}
         options={mapOptions}
         onLoad={handleMapLoad}
       >
-        {directions && (
-          <DirectionsRenderer
-            directions={directions}
-            options={{
-              suppressMarkers: true,
-              polylineOptions: {
-                strokeColor: '#1976d2',
-                strokeWeight: 6,
-                strokeOpacity: 0.8
-              }
+        {originPosition && (
+          <Marker
+            position={originPosition}
+            title="Origin"
+            icon={{
+              url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+              scaledSize: new google.maps.Size(32, 32)
             }}
+            onClick={() => handleMarkerClick(origin!)}
+          />
+        )}
+        {destinationPosition && (
+          <Marker
+            position={destinationPosition}
+            title="Destination"
+            icon={{
+              url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+              scaledSize: new google.maps.Size(32, 32)
+            }}
+            onClick={() => handleMarkerClick(destination!)}
           />
         )}
       </GoogleMap>
